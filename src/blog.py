@@ -4,8 +4,14 @@ from discord import app_commands
 import asyncio
 import os
 
+# ===============================
+# Config
+# ===============================
 BLOG_CHANNEL_ID = int(os.getenv("BLOG_CHANNEL_ID"))
 
+# ===============================
+# Modal del blog
+# ===============================
 class BlogModal(discord.ui.Modal, title="Nuevo Blog"):
     blog_text = discord.ui.TextInput(
         label="Escribe tu blog",
@@ -30,10 +36,19 @@ class BlogModal(discord.ui.Modal, title="Nuevo Blog"):
             ephemeral=True
         )
 
+        # 🔥 Espera la siguiente imagen del mismo usuario
         def check(m: discord.Message):
-            has_attachment = bool(m.attachments)
-            is_image = has_attachment and m.attachments[0].content_type and m.attachments[0].content_type.startswith("image/")
             correct_user = m.author.id == self.author.id
+            has_attachment = bool(m.attachments)
+            if has_attachment:
+                attachment = m.attachments[0]
+                is_image = any(
+                    attachment.filename.lower().endswith(ext)
+                    for ext in [".png", ".jpg", ".jpeg", ".gif", ".webp"]
+                )
+            else:
+                is_image = False
+
             print(f"[DEBUG] Mensaje recibido: author={m.author.id}, has_attachment={has_attachment}, is_image={is_image}")
             return correct_user and is_image
 
@@ -42,14 +57,12 @@ class BlogModal(discord.ui.Modal, title="Nuevo Blog"):
             self.blog_image_url = msg.attachments[0].url
             print(f"[DEBUG] Imagen recibida: {self.blog_image_url}")
         except asyncio.TimeoutError:
-            print("[DEBUG] Timeout esperando la imagen")
             await interaction.followup.send("❌ Tiempo agotado. No se recibió ninguna imagen.", ephemeral=True)
             return
 
         # Publicar blog
         channel = interaction.guild.get_channel(BLOG_CHANNEL_ID)
         if channel is None:
-            print("[DEBUG] Canal de blogs no encontrado")
             await interaction.followup.send("❌ Canal de blogs no encontrado.", ephemeral=True)
             return
 
@@ -62,17 +75,16 @@ class BlogModal(discord.ui.Modal, title="Nuevo Blog"):
         embed.set_footer(text=f"Creado por {self.author}", icon_url=self.author.display_avatar.url)
 
         await channel.send(content=f"{self.author.mention}", embed=embed)
-        print("[DEBUG] Blog publicado correctamente")
         await interaction.followup.send("✅ Tu blog ha sido publicado!", ephemeral=True)
-
+        print("[DEBUG] Blog publicado correctamente")
 
 # ===============================
 # Comando
 # ===============================
 async def crearblog_callback(interaction: discord.Interaction):
+    print(f"[DEBUG] /blog usado por {interaction.user}")
     modal = BlogModal(interaction.user)
     await interaction.response.send_modal(modal)
-
 
 # ===============================
 # Exportable
