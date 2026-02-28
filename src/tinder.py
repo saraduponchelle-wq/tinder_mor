@@ -1,5 +1,4 @@
 import discord
-from discord import app_commands
 import asyncpg
 import os
 
@@ -156,3 +155,12 @@ async def tinder_callback(interaction: discord.Interaction):
     print("[DEBUG] Mensaje enviado al usuario")
     await conn.close()
     print("[DEBUG] Conexión DB cerrada")
+
+
+from discord import app_commands
+
+tinder = app_commands.Command(
+    name="tinder",
+    description="Explora perfiles y haz match",
+    callback=tinder_callback
+)
