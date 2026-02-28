@@ -10,9 +10,13 @@ class MyBot(discord.Client):
     async def setup_hook(self):
         from src.start import start
         from src.update import update
+        from src.show import show
+        from src.delete import delete
 
-        bot.tree.add_command(start)
-        bot.tree.add_command(update)
+        self.tree.add_command(start)
+        self.tree.add_command(update)
+        self.tree.add_command(show)
+        self.tree.add_command(delete)
 
         await self.tree.sync()
         print("✅ Slash commands sincronizados")
