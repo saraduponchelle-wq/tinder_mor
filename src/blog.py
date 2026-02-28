@@ -5,12 +5,12 @@ import asyncio
 import os
 
 # ===============================
-# Config
+# CONFIG
 # ===============================
 BLOG_CHANNEL_ID = int(os.getenv("BLOG_CHANNEL_ID"))
 
 # ===============================
-# Modal del blog
+# MODAL
 # ===============================
 class BlogModal(discord.ui.Modal, title="Nuevo Blog"):
     blog_text = discord.ui.TextInput(
@@ -28,29 +28,29 @@ class BlogModal(discord.ui.Modal, title="Nuevo Blog"):
         self.blog_image_url = None
 
     async def on_submit(self, interaction: discord.Interaction):
+        # Guardar texto
         self.blog_text_value = self.blog_text.value
         print(f"[DEBUG] Texto del blog recibido: {self.blog_text_value}")
 
+        # Pedir imagen
         await interaction.response.send_message(
-            "📸 Ahora envía la **imagen del blog** en este canal. Solo la siguiente imagen será tomada.",
+            "📸 Ahora envía la **imagen del blog** en este canal. Solo la siguiente imagen válida será tomada.",
             ephemeral=True
         )
 
-        # 🔥 Espera la siguiente imagen del mismo usuario
         def check(m: discord.Message):
             correct_user = m.author.id == self.author.id
-            has_attachment = bool(m.attachments)
+            correct_channel = m.channel.id == interaction.channel.id
+            has_attachment = len(m.attachments) > 0
+            is_image = False
+
             if has_attachment:
                 attachment = m.attachments[0]
-                is_image = any(
-                    attachment.filename.lower().endswith(ext)
-                    for ext in [".png", ".jpg", ".jpeg", ".gif", ".webp"]
-                )
-            else:
-                is_image = False
+                if any(attachment.filename.lower().endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".gif", ".webp"]):
+                    is_image = True
 
-            print(f"[DEBUG] Mensaje recibido: author={m.author.id}, has_attachment={has_attachment}, is_image={is_image}")
-            return correct_user and is_image
+            print(f"[DEBUG] Mensaje recibido: author={m.author.id}, channel={m.channel.id}, correct_user={correct_user}, correct_channel={correct_channel}, has_attachment={has_attachment}, is_image={is_image}, filename={(m.attachments[0].filename if has_attachment else 'N/A')})")
+            return correct_user and correct_channel and is_image
 
         try:
             msg = await interaction.client.wait_for("message", check=check, timeout=300)  # 5 min
@@ -76,18 +76,19 @@ class BlogModal(discord.ui.Modal, title="Nuevo Blog"):
 
         await channel.send(content=f"{self.author.mention}", embed=embed)
         await interaction.followup.send("✅ Tu blog ha sido publicado!", ephemeral=True)
-        print("[DEBUG] Blog publicado correctamente")
+
 
 # ===============================
-# Comando
+# COMANDO
 # ===============================
 async def crearblog_callback(interaction: discord.Interaction):
     print(f"[DEBUG] /blog usado por {interaction.user}")
     modal = BlogModal(interaction.user)
     await interaction.response.send_modal(modal)
 
+
 # ===============================
-# Exportable
+# EXPORTABLE
 # ===============================
 blog = app_commands.Command(
     name="blog",
