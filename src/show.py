@@ -2,10 +2,11 @@ import discord
 from discord import app_commands
 import asyncpg
 import os
+from typing import Optional
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-async def show_callback(interaction: discord.Interaction, user: discord.Member = None):
+async def show_callback(interaction: discord.Interaction, user: Optional[discord.Member] = None):
     target = user or interaction.user
 
     conn = await asyncpg.connect(DATABASE_URL)
@@ -28,16 +29,9 @@ async def show_callback(interaction: discord.Interaction, user: discord.Member =
 
     await interaction.response.send_message(embed=embed)
 
+# Registramos el comando correctamente con type hints
 show = app_commands.Command(
     name="show",
     description="Muestra el perfil de un usuario",
-    callback=show_callback,
-    options=[
-        app_commands.Option(
-            name="user",
-            description="Usuario cuyo perfil quieres ver (opcional)",
-            type=discord.app_commands.OptionType.user,
-            required=False
-        )
-    ]
+    callback=show_callback
 )
