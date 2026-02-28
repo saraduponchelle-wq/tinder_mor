@@ -6,126 +6,97 @@ import os
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 # ========================
-# VIEW PARA EL TINDER
+# VIEW CON BOTONES
 # ========================
 class TinderView(discord.ui.View):
-    def __init__(self, user_id, profiles):
+    def __init__(self, profiles, current_index, user_id):
         super().__init__(timeout=None)
-        self.user_id = user_id  # quien está usando tinder
-        self.profiles = profiles  # lista de perfiles de DB
-        self.index = 0  # índice del perfil actual
+        self.profiles = profiles
+        self.index = current_index
+        self.user_id = user_id
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        # Solo puede interactuar el usuario que abrió el comando
-        return interaction.user.id == self.user_id
+        # Botones únicos
+        self.add_item(discord.ui.Button(label="❌ Pass", style=discord.ButtonStyle.red, custom_id=f"pass_{user_id}_{self.index}"))
+        self.add_item(discord.ui.Button(label="✅ Match", style=discord.ButtonStyle.green, custom_id=f"match_{user_id}_{self.index}"))
 
-    async def show_profile(self, interaction: discord.Interaction):
-        # Mostrar perfil actual
-        if not self.profiles:
-            await interaction.response.send_message("No hay perfiles disponibles.", ephemeral=True)
-            return
-
-        profile = self.profiles[self.index]
-        embed = discord.Embed(
-            title=f"💘 Perfil de {profile['name']}",
-            description=profile["description"],
-            color=discord.Color.pink()
-        )
-        embed.add_field(name="Que te interesa", value=", ".join(profile["interests"]), inline=False)
-        embed.add_field(name="Lineas", value=profile["lines"], inline=False)
-        embed.set_thumbnail(url=f"https://cdn.discordapp.com/avatars/{profile['user_id']}/{profile['avatar']}.png")
-
-        # Envía el embed con los botones
-        await interaction.response.edit_message(embed=embed, view=self)
-
-    @discord.ui.button(label="💚 Match", style=discord.ButtonStyle.green, custom_id="tinder_match")
-    async def match_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        profile = self.profiles[self.index]
-        print(f"[DEBUG] {interaction.user} presionó MATCH sobre {profile['name']} ({profile['user_id']})")
-
-        # Conectar DB
-        conn = await asyncpg.connect(DATABASE_URL)
-
-        # Actualizar matches del usuario actual
-        await conn.execute("""
-            UPDATE profiles
-            SET matches = array_append(matches, $1)
-            WHERE user_id = $2 AND NOT $1 = ANY(matches)
-        """, profile['user_id'], self.user_id)
-
-        # Revisar si hay match mutuo
-        other_matches = await conn.fetchval("SELECT matches FROM profiles WHERE user_id = $1", profile['user_id'])
-        if other_matches and self.user_id in other_matches:
-            # Match mutuo!
-            print(f"[DEBUG] ¡MATCH mutuo! {interaction.user.id} <-> {profile['user_id']}")
-            try:
-                user = await interaction.client.fetch_user(self.user_id)
-                other = await interaction.client.fetch_user(profile['user_id'])
-                await user.send(f"¡Hiciste MATCH con {profile['name']}! Puedes iniciar conversación.")
-                await other.send(f"¡Hiciste MATCH con {interaction.user.name}! Puedes iniciar conversación.")
-            except Exception as e:
-                print(f"[DEBUG] Error al notificar match: {e}")
-
-        await conn.close()
-
-        # Pasar al siguiente perfil
-        self.index = (self.index + 1) % len(self.profiles)
-        print(f"[DEBUG] Mostrando siguiente perfil, índice {self.index}")
-        await self.show_profile(interaction)
-
-    @discord.ui.button(label="❌ Pass", style=discord.ButtonStyle.red, custom_id="tinder_pass")
+    @discord.ui.button(label="❌ Pass", style=discord.ButtonStyle.red, disabled=True)
     async def pass_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        profile = self.profiles[self.index]
-        print(f"[DEBUG] {interaction.user} presionó PASS sobre {profile['name']} ({profile['user_id']})")
+        pass  # placeholder, se maneja con custom_id en on_interaction
 
-        # Pasar al siguiente perfil
-        self.index = (self.index + 1) % len(self.profiles)
-        print(f"[DEBUG] Mostrando siguiente perfil, índice {self.index}")
-        await self.show_profile(interaction)
+    @discord.ui.button(label="✅ Match", style=discord.ButtonStyle.green, disabled=True)
+    async def match_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        pass  # placeholder, se maneja con custom_id en on_interaction
+
 
 # ========================
-# SLASH COMMAND
+# COMANDO /TINDER
 # ========================
 async def tinder_callback(interaction: discord.Interaction):
-    print(f"[DEBUG] /tinder usado por {interaction.user}")
+    print(f"[DEBUG] /tinder usado por {interaction.user.name}")
 
     conn = await asyncpg.connect(DATABASE_URL)
+    print("[DEBUG] Conectado a la DB")
+
+    # Obtener todos los perfiles excepto el del usuario
     rows = await conn.fetch("""
-        SELECT user_id, name, interests, lines, description, array_remove(matches, NULL) AS matches,
-               encode(avatar::bytea, 'hex') AS avatar
+        SELECT user_id, name, interests, lines, description, array_remove(matches, NULL) AS matches
         FROM profiles
         WHERE user_id != $1
         ORDER BY user_id
     """, interaction.user.id)
-    await conn.close()
-
-    print(f"[DEBUG] Conectado a la DB")
     print(f"[DEBUG] {len(rows)} perfiles obtenidos")
 
     if not rows:
-        await interaction.response.send_message("No hay perfiles disponibles.", ephemeral=True)
+        await interaction.response.send_message("No hay otros perfiles disponibles.", ephemeral=True)
+        await conn.close()
         return
 
-    # Inicializar la vista de tinder
-    view = TinderView(interaction.user.id, rows)
-    profile = rows[0]
+    # Encontrar el primer perfil al que no le has dado match
+    selected_profile = None
+    for idx, profile in enumerate(rows):
+        matches = profile["matches"] or []
+        if interaction.user.id not in matches:
+            selected_profile = (idx, profile)
+            break
 
+    if not selected_profile:
+        # Si todos ya los viste, reiniciamos
+        selected_profile = (0, rows[0])
+
+    idx, profile = selected_profile
+
+    # Obtener objeto de Discord para avatar
+    try:
+        user_obj = await interaction.client.fetch_user(profile["user_id"])
+        avatar_url = user_obj.display_avatar.url
+    except Exception:
+        avatar_url = None
+
+    # Crear embed
     embed = discord.Embed(
-        title=f"💘 Perfil de {profile['name']}",
-        description=profile["description"],
+        title=f"💘 {profile['name']}",
         color=discord.Color.pink()
     )
-    embed.add_field(name="Que te interesa", value=", ".join(profile["interests"]), inline=False)
+    embed.add_field(name="Intereses", value=", ".join(profile["interests"]), inline=False)
     embed.add_field(name="Lineas", value=profile["lines"], inline=False)
-    embed.set_thumbnail(url=f"https://cdn.discordapp.com/avatars/{profile['user_id']}/{profile['avatar']}.png")
+    embed.add_field(name="Descripción", value=profile["description"], inline=False)
+    if avatar_url:
+        embed.set_thumbnail(url=avatar_url)
 
-    print(f"[DEBUG] Conexión DB cerrada")
+    # Crear la vista con botones
+    view = TinderView(rows, idx, interaction.user.id)
 
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+    print("[DEBUG] Mensaje enviado al usuario")
+    await conn.close()
+    print("[DEBUG] Conexión DB cerrada")
 
-# Comando exportable
+
+# ========================
+# COMANDO EXPORTABLE
+# ========================
 tinder = app_commands.Command(
     name="tinder",
-    description="Explora perfiles como en Tinder",
+    description="Revisa perfiles como en Tinder",
     callback=tinder_callback
 )
