@@ -1,5 +1,6 @@
 import discord
 from discord import app_commands
+import os
 
 class MyBot(discord.Client):
     def __init__(self):
@@ -20,4 +21,6 @@ bot = MyBot()
 async def on_ready():
     print(f"🤖 Conectado como {bot.user}")
 
+TOKEN = os.getenv("DISCORD_TOKEN")
+print("TOKEN:", TOKEN)
 bot.run(TOKEN)
