@@ -13,7 +13,9 @@ class MyBot(discord.Client):
         from src.show import show
         from src.delete import delete
         from src.tinder import tinder
-
+        from src.blog import blog
+        
+        bot.tree.add_command(blog)
         self.tree.add_command(start)
         self.tree.add_command(update)
         self.tree.add_command(show)
