@@ -12,11 +12,13 @@ class MyBot(discord.Client):
         from src.update import update
         from src.show import show
         from src.delete import delete
+        from src.tinder import tinder
 
         self.tree.add_command(start)
         self.tree.add_command(update)
         self.tree.add_command(show)
         self.tree.add_command(delete)
+        self.tree.add_command(tinder)
 
         await self.tree.sync()
         print("✅ Slash commands sincronizados")
