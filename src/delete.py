@@ -6,7 +6,6 @@ import os
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 async def delete_callback(interaction: discord.Interaction, user: discord.Member):
-    # Verificar permisos de administrador
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message(
             "❌ Solo los administradores pueden usar este comando.",
@@ -35,13 +34,5 @@ async def delete_callback(interaction: discord.Interaction, user: discord.Member
 delete = app_commands.Command(
     name="delete",
     description="Elimina el perfil de un usuario (solo admins)",
-    callback=delete_callback,
-    options=[
-        app_commands.Option(
-            name="user",
-            description="Usuario cuyo perfil quieres eliminar",
-            type=discord.app_commands.OptionType.user,
-            required=True
-        )
-    ]
+    callback=delete_callback
 )
