@@ -14,13 +14,7 @@ class InterestSelect(discord.ui.Select):
             discord.SelectOption(label="Femboys"),
             discord.SelectOption(label="Futas"),
         ]
-
-        super().__init__(
-            placeholder="¿Qué te interesa?",
-            min_values=1,
-            max_values=4,
-            options=options
-        )
+        super().__init__(placeholder="¿Qué te interesa?", min_values=1, max_values=4, options=options)
         if default_values:
             self.default_values = default_values
 
@@ -40,13 +34,7 @@ class LinesSelect(discord.ui.Select):
             discord.SelectOption(label="Largo"),
             discord.SelectOption(label="Biblias"),
         ]
-
-        super().__init__(
-            placeholder="¿Cuánto escribes?",
-            min_values=1,
-            max_values=1,
-            options=options
-        )
+        super().__init__(placeholder="¿Cuánto escribes?", min_values=1, max_values=1, options=options)
         if default_value:
             self.default = default_value
 
@@ -64,20 +52,11 @@ class ProfileModal(discord.ui.Modal, title="Crea tu perfil"):
         self.interests = interests
         self.lines = lines
 
-        # TextInputs con valores por defecto
-        self.name = discord.ui.TextInput(
-            label="Nombre",
-            max_length=50,
-            default=default_name
-        )
+        self.name = discord.ui.TextInput(label="Nombre", max_length=50, default=default_name)
         self.description = discord.ui.TextInput(
-            label="Descripción",
-            style=discord.TextStyle.paragraph,
-            max_length=500,
-            default=default_description
+            label="Descripción", style=discord.TextStyle.paragraph, max_length=500, default=default_description
         )
 
-        # Añadir inputs al modal
         self.add_item(self.name)
         self.add_item(self.description)
 
@@ -108,7 +87,7 @@ class ProfileModal(discord.ui.Modal, title="Crea tu perfil"):
         await interaction.response.send_message(embed=embed)
         sent_message = await interaction.original_response()
 
-        # Guardar en DB usando TEXT[] directamente
+        # Guardar en DB
         await conn.execute("""
             INSERT INTO profiles(user_id, name, interests, lines, description, message_id)
             VALUES($1, $2, $3, $4, $5, $6)
@@ -140,9 +119,7 @@ class StartView(discord.ui.View):
             )
             return
 
-        await interaction.response.send_modal(
-            ProfileModal(self.interests, self.lines)
-        )
+        await interaction.response.send_modal(ProfileModal(self.interests, self.lines))
 
 
 # ========================
@@ -151,28 +128,22 @@ class StartView(discord.ui.View):
 async def start_callback(interaction: discord.Interaction):
     DATABASE_URL = os.getenv("DATABASE_URL")
     conn = await asyncpg.connect(DATABASE_URL)
-
     row = await conn.fetchrow("SELECT * FROM profiles WHERE user_id = $1", interaction.user.id)
     await conn.close()
 
-    if row:  # Ya tiene perfil
+    if row:
         await interaction.response.send_message(
             "❌ Ya tienes un perfil creado. Usa `/update` para modificarlo.",
             ephemeral=True
         )
         return
 
-    # Si no tiene perfil, crear el embed con formulario
     embed = discord.Embed(
         title="💘 Crea tu perfil Tinder Discord",
         description="Selecciona tus preferencias y luego pulsa **Crear Perfil**.",
         color=discord.Color.pink()
     )
-    await interaction.response.send_message(
-        embed=embed,
-        view=StartView(),
-        ephemeral=True
-    )
+    await interaction.response.send_message(embed=embed, view=StartView(), ephemeral=True)
 
 
 start = app_commands.Command(
