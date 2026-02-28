@@ -3,13 +3,11 @@ from discord import app_commands
 import asyncpg
 import os
 
-
-
 # ========================
 # SELECT: Intereses
 # ========================
 class InterestSelect(discord.ui.Select):
-    def __init__(self):
+    def __init__(self, default_values=None):
         options = [
             discord.SelectOption(label="Mujeres"),
             discord.SelectOption(label="Hombres"),
@@ -23,6 +21,8 @@ class InterestSelect(discord.ui.Select):
             max_values=4,
             options=options
         )
+        if default_values:
+            self.default_values = default_values
 
     async def callback(self, interaction: discord.Interaction):
         self.view.interests = self.values
@@ -33,7 +33,7 @@ class InterestSelect(discord.ui.Select):
 # SELECT: Lineas
 # ========================
 class LinesSelect(discord.ui.Select):
-    def __init__(self):
+    def __init__(self, default_value=None):
         options = [
             discord.SelectOption(label="Corto"),
             discord.SelectOption(label="Medio"),
@@ -47,6 +47,8 @@ class LinesSelect(discord.ui.Select):
             max_values=1,
             options=options
         )
+        if default_value:
+            self.default = default_value
 
     async def callback(self, interaction: discord.Interaction):
         self.view.lines = self.values[0]
@@ -56,19 +58,28 @@ class LinesSelect(discord.ui.Select):
 # ========================
 # MODAL
 # ========================
-import asyncpg
-import os
-import discord
-
 class ProfileModal(discord.ui.Modal, title="Crea tu perfil"):
-
-    name = discord.ui.TextInput(label="Nombre", max_length=50)
-    description = discord.ui.TextInput(label="Descripción", style=discord.TextStyle.paragraph, max_length=500)
-
-    def __init__(self, interests, lines):
+    def __init__(self, interests, lines, default_name="", default_description=""):
         super().__init__()
         self.interests = interests
         self.lines = lines
+
+        # TextInputs con valores por defecto
+        self.name = discord.ui.TextInput(
+            label="Nombre",
+            max_length=50,
+            default=default_name
+        )
+        self.description = discord.ui.TextInput(
+            label="Descripción",
+            style=discord.TextStyle.paragraph,
+            max_length=500,
+            default=default_description
+        )
+
+        # Añadir inputs al modal
+        self.add_item(self.name)
+        self.add_item(self.description)
 
     async def on_submit(self, interaction: discord.Interaction):
         DATABASE_URL = os.getenv("DATABASE_URL")
@@ -107,17 +118,18 @@ class ProfileModal(discord.ui.Modal, title="Crea tu perfil"):
 
         await conn.close()
 
+
 # ========================
 # VIEW PRINCIPAL
 # ========================
 class StartView(discord.ui.View):
-    def __init__(self):
+    def __init__(self, default_interests=None, default_lines=None):
         super().__init__(timeout=180)
-        self.interests = []
-        self.lines = None
+        self.interests = default_interests or []
+        self.lines = default_lines
 
-        self.add_item(InterestSelect())
-        self.add_item(LinesSelect())
+        self.add_item(InterestSelect(default_values=self.interests))
+        self.add_item(LinesSelect(default_value=self.lines))
 
     @discord.ui.button(label="Crear Perfil", style=discord.ButtonStyle.green)
     async def create_profile(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -137,12 +149,25 @@ class StartView(discord.ui.View):
 # SLASH COMMAND EXPORTABLE
 # ========================
 async def start_callback(interaction: discord.Interaction):
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    conn = await asyncpg.connect(DATABASE_URL)
+
+    row = await conn.fetchrow("SELECT * FROM profiles WHERE user_id = $1", interaction.user.id)
+    await conn.close()
+
+    if row:  # Ya tiene perfil
+        await interaction.response.send_message(
+            "❌ Ya tienes un perfil creado. Usa `/update` para modificarlo.",
+            ephemeral=True
+        )
+        return
+
+    # Si no tiene perfil, crear el embed con formulario
     embed = discord.Embed(
         title="💘 Crea tu perfil Tinder Discord",
         description="Selecciona tus preferencias y luego pulsa **Crear Perfil**.",
         color=discord.Color.pink()
     )
-
     await interaction.response.send_message(
         embed=embed,
         view=StartView(),
