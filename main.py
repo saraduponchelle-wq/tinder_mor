@@ -26,10 +26,10 @@ async def on_ready():
 
 import os
 
-print(os.getenv("DISCORD_TOKEN"))
-print(os.getenv("TOKEN"))
+
 TOKEN = os.getenv("DISCORD_TOKEN")
 if not TOKEN:
     raise ValueError("❌ DISCORD_TOKEN no encontrado")
 
 print("✅ Token cargado correctamente")
+bot.run(TOKEN)
