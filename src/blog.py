@@ -71,5 +71,5 @@ async def crearblog_callback(interaction: discord.Interaction):
 blog = app_commands.Command(
     name="blog",
     description="Crea un blog en el canal especial",
-    callback=blog_callback
+    callback=crearblog_callback
 )
