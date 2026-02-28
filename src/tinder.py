@@ -1,123 +1,209 @@
 # src/tinder.py
+
 import discord
 from discord import app_commands
-from discord.ext import commands
 import asyncpg
-import uuid
+import os
 
-intents = discord.Intents.default()
-intents.members = True
+# ===============================
+# CONEXIÓN A BASE DE DATOS
+# ===============================
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+async def get_profiles(exclude_user_id: int):
+    print(f"[DEBUG] Intentando conectar a la DB...")
+    DATABASE_URL = os.getenv("DATABASE_URL")
 
-# ------------------------------
-# CONFIG DB
-DB_CONFIG = {
-    "user": "postgres",
-    "password": "password",
-    "database": "mydb",
-    "host": "localhost",
-}
+    if not DATABASE_URL:
+        print("[ERROR] DATABASE_URL no está definida")
+        return []
 
-# ------------------------------
-# FUNCIONES DE BASE DE DATOS
-async def get_profiles(exclude_user_id):
-    print(f"[DEBUG] Conectando a DB para {exclude_user_id}")
-    conn = await asyncpg.connect(**DB_CONFIG)
-    rows = await conn.fetch("""
-        SELECT id, username, discrim
-        FROM users
-        WHERE id != $1
-    """, exclude_user_id)
-    await conn.close()
-    print(f"[DEBUG] {len(rows)} perfiles obtenidos")
-    return rows
+    try:
+        conn = await asyncpg.connect(DATABASE_URL)
+        print("[DEBUG] Conexión a DB exitosa")
 
-async def add_match(user_id, target_id):
-    conn = await asyncpg.connect(**DB_CONFIG)
-    # añade target_id a la lista de matches de user_id
-    await conn.execute("""
-        INSERT INTO matches (user_id, match_id)
-        VALUES ($1, $2)
-        ON CONFLICT DO NOTHING
-    """, user_id, target_id)
-    await conn.close()
-    print(f"[DEBUG] {user_id} puso match a {target_id}")
+        rows = await conn.fetch("""
+            SELECT user_id, name, interests, lines, description
+            FROM profiles
+            WHERE user_id != $1
+        """, exclude_user_id)
 
-# ------------------------------
-# VISTA CON BOTONES
+        await conn.close()
+        print(f"[DEBUG] {len(rows)} perfiles obtenidos")
+        return rows
+
+    except Exception as e:
+        print(f"[ERROR] Error conectando a la DB: {e}")
+        return []
+
+
+# ===============================
+# VIEW DE TINDER
+# ===============================
+
 class TinderView(discord.ui.View):
-    def __init__(self, profiles, user_id):
-        super().__init__(timeout=None)
+    def __init__(self, profiles, author_id):
+        super().__init__(timeout=300)  # 5 min
         self.profiles = profiles
         self.index = 0
-        self.user_id = user_id
-        self.update_buttons()
+        self.author_id = author_id
 
-    def update_buttons(self):
-        # Limpiamos botones antiguos
-        self.clear_items()
-        # Generamos custom_id únicos
-        pass_id = f"pass_{uuid.uuid4()}"
-        match_id = f"match_{uuid.uuid4()}"
-        # Añadimos botones
-        self.add_item(discord.ui.Button(label="Pass", style=discord.ButtonStyle.danger, custom_id=pass_id))
-        self.add_item(discord.ui.Button(label="Match", style=discord.ButtonStyle.success, custom_id=match_id))
+        print(f"[DEBUG] View creada con {len(profiles)} perfiles")
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        # Solo el usuario que ejecutó el comando puede usar los botones
-        return interaction.user.id == self.user_id
+        print(f"[DEBUG] interaction_check -> {interaction.user.id}")
+
+        if interaction.user.id != self.author_id:
+            print("[DEBUG] Usuario no autorizado a usar estos botones")
+            await interaction.response.send_message(
+                "❌ No puedes usar estos botones.",
+                ephemeral=True
+            )
+            return False
+
+        return True
 
     async def on_timeout(self):
-        print("[DEBUG] View timeout")
+        print("[DEBUG] View expiró (timeout)")
 
-    @discord.ui.button(label="Pass", style=discord.ButtonStyle.danger)
+    # ===============================
+    # BOTÓN PASS
+    # ===============================
+
+    @discord.ui.button(label="❌ Pass", style=discord.ButtonStyle.danger)
     async def pass_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        print(f"[DEBUG] {interaction.user} presionó PASS")
+        print("[DEBUG] Botón PASS presionado")
         await self.next_profile(interaction)
 
-    @discord.ui.button(label="Match", style=discord.ButtonStyle.success)
+    # ===============================
+    # BOTÓN MATCH
+    # ===============================
+
+    @discord.ui.button(label="✅ Match", style=discord.ButtonStyle.success)
     async def match_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        profile = self.profiles[self.index]
-        print(f"[DEBUG] {interaction.user} presionó MATCH -> {profile['username']}#{profile['discrim']}")
-        await add_match(self.user_id, profile['id'])
+        print("[DEBUG] Botón MATCH presionado")
+
+        current_profile = self.profiles[self.index]
+        print(f"[DEBUG] Match a user_id {current_profile['user_id']}")
+
+        # Aquí podrías guardar match en DB si quieres
+
         await self.next_profile(interaction)
+
+    # ===============================
+    # CAMBIAR PERFIL
+    # ===============================
 
     async def next_profile(self, interaction: discord.Interaction):
+        print(f"[DEBUG] Perfil actual index: {self.index}")
+
         self.index += 1
+
         if self.index >= len(self.profiles):
-            self.index = 0  # volvemos al inicio
-            print("[DEBUG] Se acabaron perfiles, volvemos a empezar")
+            print("[DEBUG] Se acabaron perfiles, reiniciando a 0")
+            self.index = 0
+
         profile = self.profiles[self.index]
+
         embed = discord.Embed(
-            title=f"{profile['username']}#{profile['discrim']}",
-            description="Perfil de prueba",
-            color=discord.Color.blue()
+            title=f"💘 Perfil de {profile['name']}",
+            color=discord.Color.pink()
         )
-        print(f"[DEBUG] Mostrando perfil {profile['username']}#{profile['discrim']}")
+
+        embed.add_field(
+            name="Intereses",
+            value=", ".join(profile["interests"] or ["Ninguno"]),
+            inline=False
+        )
+
+        embed.add_field(
+            name="Líneas",
+            value=profile["lines"] or "Sin líneas",
+            inline=False
+        )
+
+        embed.add_field(
+            name="Descripción",
+            value=profile["description"] or "Sin descripción",
+            inline=False
+        )
+
+        print(f"[DEBUG] Mostrando perfil {profile['user_id']} en index {self.index}")
+
         await interaction.response.edit_message(embed=embed, view=self)
 
-# ------------------------------
-# CALLBACK DEL COMANDO
+
+# ===============================
+# COMANDO /tinder
+# ===============================
+
 async def tinder_callback(interaction: discord.Interaction):
     print(f"[DEBUG] /tinder usado por {interaction.user} ({interaction.user.id})")
-    profiles = await get_profiles(interaction.user.id)
-    if not profiles:
-        await interaction.response.send_message("No hay otros perfiles disponibles.", ephemeral=True)
+
+    await interaction.response.defer(ephemeral=True)
+    print("[DEBUG] Interacción defer hecha")
+
+    profiles_raw = await get_profiles(interaction.user.id)
+
+    if not profiles_raw:
+        print("[DEBUG] No hay perfiles disponibles")
+        await interaction.followup.send(
+            "❌ No hay perfiles disponibles.",
+            ephemeral=True
+        )
         return
 
-    first_profile = profiles[0]
-    embed = discord.Embed(
-        title=f"{first_profile['username']}#{first_profile['discrim']}",
-        description="Primer perfil",
-        color=discord.Color.blue()
-    )
-    view = TinderView(profiles, interaction.user.id)
-    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-    print("[DEBUG] Primer embed enviado")
+    profiles = []
+    for row in profiles_raw:
+        profiles.append({
+            "user_id": row["user_id"],
+            "name": row["name"],
+            "interests": row["interests"],
+            "lines": row["lines"],
+            "description": row["description"]
+        })
 
-# ------------------------------
+    print(f"[DEBUG] Preparando primer perfil")
+
+    first = profiles[0]
+
+    embed = discord.Embed(
+        title=f"💘 Perfil de {first['name']}",
+        color=discord.Color.pink()
+    )
+
+    embed.add_field(
+        name="Intereses",
+        value=", ".join(first["interests"] or ["Ninguno"]),
+        inline=False
+    )
+
+    embed.add_field(
+        name="Líneas",
+        value=first["lines"] or "Sin líneas",
+        inline=False
+    )
+
+    embed.add_field(
+        name="Descripción",
+        value=first["description"] or "Sin descripción",
+        inline=False
+    )
+
+    view = TinderView(profiles, interaction.user.id)
+
+    await interaction.followup.send(
+        embed=embed,
+        view=view,
+        ephemeral=True
+    )
+
+    print("[DEBUG] Primer embed enviado correctamente")
+
+
+# ===============================
 # EXPORTABLE
+# ===============================
+
 tinder = app_commands.Command(
     name="tinder",
     description="Muestra perfiles estilo Tinder",
