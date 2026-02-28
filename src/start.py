@@ -1,5 +1,8 @@
 import discord
 from discord import app_commands
+import asyncpg
+import os
+
 
 
 # ========================
@@ -53,18 +56,14 @@ class LinesSelect(discord.ui.Select):
 # ========================
 # MODAL
 # ========================
+import asyncpg
+import os
+import discord
+
 class ProfileModal(discord.ui.Modal, title="Crea tu perfil"):
 
-    name = discord.ui.TextInput(
-        label="Nombre",
-        max_length=50
-    )
-
-    description = discord.ui.TextInput(
-        label="Descripción",
-        style=discord.TextStyle.paragraph,
-        max_length=500
-    )
+    name = discord.ui.TextInput(label="Nombre", max_length=50)
+    description = discord.ui.TextInput(label="Descripción", style=discord.TextStyle.paragraph, max_length=500)
 
     def __init__(self, interests, lines):
         super().__init__()
@@ -72,28 +71,41 @@ class ProfileModal(discord.ui.Modal, title="Crea tu perfil"):
         self.lines = lines
 
     async def on_submit(self, interaction: discord.Interaction):
-        embed = discord.Embed(
-            title="💘 Perfil creado",
-            color=discord.Color.pink()
-        )
+        DATABASE_URL = os.getenv("DATABASE_URL")
+        conn = await asyncpg.connect(DATABASE_URL)
 
+        # Revisar si ya hay un perfil
+        row = await conn.fetchrow("SELECT message_id FROM profiles WHERE user_id = $1", interaction.user.id)
+
+        # Borrar embed anterior si existe
+        if row and row["message_id"]:
+            try:
+                msg = await interaction.channel.fetch_message(row["message_id"])
+                await msg.delete()
+            except:
+                pass
+
+        # Crear embed
+        embed = discord.Embed(title="💘 Perfil creado", color=discord.Color.pink())
         embed.add_field(name="Name", value=self.name.value, inline=False)
-        embed.add_field(
-            name="Que te interesa",
-            value=", ".join(self.interests),
-            inline=False
-        )
+        embed.add_field(name="Que te interesa", value=", ".join(self.interests), inline=False)
         embed.add_field(name="Lineas", value=self.lines, inline=False)
-        embed.add_field(
-            name="Descripcion",
-            value=self.description.value,
-            inline=False
-        )
-
+        embed.add_field(name="Descripcion", value=self.description.value, inline=False)
         embed.set_thumbnail(url=interaction.user.display_avatar.url)
 
+        # Enviar mensaje
         await interaction.response.send_message(embed=embed)
+        sent_message = await interaction.original_response()
 
+        # Guardar en DB usando TEXT[] directamente
+        await conn.execute("""
+            INSERT INTO profiles(user_id, name, interests, lines, description, message_id)
+            VALUES($1, $2, $3, $4, $5, $6)
+            ON CONFLICT (user_id)
+            DO UPDATE SET name = $2, interests = $3, lines = $4, description = $5, message_id = $6
+        """, interaction.user.id, self.name.value, self.interests, self.lines, self.description.value, sent_message.id)
+
+        await conn.close()
 
 # ========================
 # VIEW PRINCIPAL
