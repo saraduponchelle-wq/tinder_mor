@@ -3,6 +3,13 @@ from discord import app_commands
 import asyncpg
 import os
 
+EMOJI_GOLDNOTI = str(os.getenv("GOLDNOTI"))
+EMOJI_INTEREST = str(os.getenv("INTEREST"))
+EMOJI_LINES = str(os.getenv("LINES"))
+EMOJI_STAR = str(os.getenv("STAR"))
+EMOJI_HEART = str(os.getenv("HEART"))
+EMOJI_BROKENHEART = str(os.getenv("BROKENHEART"))
+
 # ===============================
 # DB HELPERS
 # ===============================
@@ -78,24 +85,24 @@ async def get_full_profile(user_id: int):
 def create_profile_embed(profile_data: dict, discord_user: discord.User, show_discord=False):
 
     embed = discord.Embed(
-        title=f"💘 Perfil de {profile_data['name']}",
+        title=f"{EMOJI_HEART} Perfil de {profile_data['name']}",
         color=discord.Color.pink()
     )
 
     embed.add_field(
-        name="Intereses",
+        name = f"{EMOJI_INTEREST}Intereses",
         value=", ".join(profile_data["interests"] or ["Ninguno"]),
         inline=False
     )
 
     embed.add_field(
-        name="Líneas",
+        name=f"{EMOJI_LINES}Líneas",
         value=profile_data["lines"] or "Sin líneas",
         inline=False
     )
 
     embed.add_field(
-        name="Descripción",
+        name=f"{EMOJI_STAR}Bio",
         value=profile_data["description"] or "Sin descripción",
         inline=False
     )
@@ -119,7 +126,7 @@ def create_profile_embed(profile_data: dict, discord_user: discord.User, show_di
 async def send_match(user: discord.User, profile_data: dict, other_user: discord.User):
     embed = create_profile_embed(profile_data, other_user, show_discord=True)
 
-    embed.title = f"💘 ¡Has hecho match con {profile_data['name']}!"
+    embed.title = f"{EMOJI_HEART} ¡Has hecho match con {profile_data['name']}!"
 
     await user.send(embed=embed)
 
@@ -138,7 +145,7 @@ class LikeBackView(discord.ui.View):
         for item in self.children:
             item.disabled = True
 
-    @discord.ui.button(label="❤️ Hacer Match", style=discord.ButtonStyle.success)
+    @discord.ui.button(label=f"{EMOJI_HEART} Hacer Match", style=discord.ButtonStyle.success)
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         await add_match(interaction.user.id, self.liker_id)
@@ -153,15 +160,15 @@ class LikeBackView(discord.ui.View):
         await send_match(user2, profile1, user1)
 
         await interaction.response.edit_message(
-            content="💘 ¡Match realizado!",
+            content=f"{EMOJI_HEART} ¡Match realizado!",
             view=None
         )
 
-    @discord.ui.button(label="❌ Rechazar", style=discord.ButtonStyle.danger)
+    @discord.ui.button(label=f"{EMOJI_BROKENHEART} Rechazar", style=discord.ButtonStyle.danger)
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         await interaction.response.edit_message(
-            content="❌ Has rechazado el like.",
+            content=f"{EMOJI_BROKENHEART} Has rechazado el like.",
             view=None
         )
 
@@ -181,12 +188,12 @@ class TinderView(discord.ui.View):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         return interaction.user.id == self.author_id
 
-    @discord.ui.button(label="❌ Pass", style=discord.ButtonStyle.danger)
+    @discord.ui.button(label=f"{EMOJI_BROKENHEART} Pass", style=discord.ButtonStyle.danger)
     async def pass_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
         await self.next_profile(interaction)
 
-    @discord.ui.button(label="❤️ Like", style=discord.ButtonStyle.success)
+    @discord.ui.button(label=f"{EMOJI_HEART} Like", style=discord.ButtonStyle.success)
     async def match_button(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         await interaction.response.defer()
@@ -214,7 +221,7 @@ class TinderView(discord.ui.View):
 
             embed = create_profile_embed(profile_liker, liker_user, show_discord=False)
 
-            embed.title = "💌 A alguien le ha gustado tu perfil"
+            embed.title = f"{EMOJI_GOLDNOTI} A alguien le ha gustado tu perfil"
 
             try:
                 await target_user.send(
