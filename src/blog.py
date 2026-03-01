@@ -7,7 +7,7 @@ import os
 BLOG_CHANNEL_ID = int(os.getenv("BLOG_CHANNEL_ID"))
 BLOG_REVIEW_CHANNEL_ID = int(os.getenv("BLOG_REVIEW_CHANNEL_ID"))
 ADMIN_ROLE_ID = int(os.getenv("ADMIN_ROLE_ID"))
-EMOJI_RANDOM = str(os.getenv("NOTI"))
+EMOJI_NOTI = str(os.getenv("NOTI"))
 
 from src.blog_notifications import get_users_with_news_enabled
 
