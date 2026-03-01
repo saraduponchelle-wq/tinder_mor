@@ -23,8 +23,8 @@ async def post_blog_for_review(client: discord.Client, author: discord.User, blo
                     return
 
                 embed = discord.Embed(
-                    title="**" + EMOJI_NOTI + " Nuevo Blog de " + self.author.display_name + "**\n" + "⚬─────────────✧─────────────⚬",
-                    description=self.blog_text,
+                    title=f"**{EMOJI_NOTI} Nuevo Blog de {author.display_name}**\n⚬─────────────✧─────────────⚬",
+                    description=blog_text,
                     color=discord.Color.red()
                 )
                 if image_url:
