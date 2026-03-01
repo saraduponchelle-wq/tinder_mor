@@ -5,6 +5,13 @@ import os
 from typing import Optional
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+EMOJI_GOLDNOTI = str(os.getenv("GOLDNOTI"))
+EMOJI_INTEREST = str(os.getenv("INTEREST"))
+EMOJI_LINES = str(os.getenv("LINES"))
+EMOJI_STAR = str(os.getenv("STAR"))
+EMOJI_HEART = str(os.getenv("HEART"))
+EMOJI_BROKENHEART = str(os.getenv("BROKENHEART"))
+EMOJI_FIRE = str(os.getenv("FIRE"))
 
 async def show_callback(interaction: discord.Interaction, user: Optional[discord.Member] = None):
     target = user or interaction.user
@@ -15,16 +22,16 @@ async def show_callback(interaction: discord.Interaction, user: Optional[discord
 
     if not row:
         await interaction.response.send_message(
-            "❌ No se encontró un perfil para este usuario.",
+            f"{EMOJI_BROKENHEART} No se encontró un perfil para este usuario.",
             ephemeral=True
         )
         return
 
-    embed = discord.Embed(title="💘 Perfil de Discord Tinder", color=discord.Color.pink())
-    embed.add_field(name="Nombre", value=row["name"], inline=False)
-    embed.add_field(name="Que te interesa", value=", ".join(row["interests"]), inline=False)
-    embed.add_field(name="Lineas", value=row["lines"], inline=False)
-    embed.add_field(name="Descripcion", value=row["description"], inline=False)
+    embed = discord.Embed(title = f"**{EMOJI_HEART} Perfil de Tinder**", color=discord.Color.pink())
+    embed.add_field(name=f"{EMOJI_FIRE}Nombre", value=row["name"], inline=False)
+    embed.add_field(name=f"{EMOJI_INTEREST}Intereses", value=", ".join(row["interests"]), inline=False)
+    embed.add_field(name=f"{EMOJI_LINES}Lineas", value=row["lines"], inline=False)
+    embed.add_field(name=f"{EMOJI_STAR}Bio", value=row["description"], inline=False)
     embed.set_thumbnail(url=target.display_avatar.url)
 
     await interaction.response.send_message(embed=embed)
