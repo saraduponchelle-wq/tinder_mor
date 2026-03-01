@@ -12,7 +12,7 @@ from src.blog_notifications import get_users_with_news_enabled
 
 
 # ===============================
-# Función para enviar blog a revisión con imágenes adicionales
+# Función para enviar blog a revisión con imágenes adicionales y orden correcto
 # ===============================
 async def post_blog_for_review(
     client: discord.Client,
@@ -29,13 +29,16 @@ async def post_blog_for_review(
         print("[ERROR] Canal de revisión de blogs no encontrado")
         return
 
-    # 🔹 Embed imagen inicial
+    # 🔹 Primero mencionamos al autor
+    msg_content = await channel.send(f"{author.mention}")
+
+    # 🔹 Embed de imagen inicial
     if imagen_inicio:
         embed_inicio = discord.Embed(color=discord.Color.blue())
         embed_inicio.set_image(url=imagen_inicio)
         await channel.send(embed=embed_inicio)
 
-    # 🔹 Embed principal (contenido del usuario)
+    # 🔹 Embed del blog (contenido del usuario + imagen)
     embed_blog = discord.Embed(
         title=f"📖 Blog de {author.display_name}",
         description=blog_text,
@@ -45,15 +48,22 @@ async def post_blog_for_review(
         embed_blog.set_image(url=image_url)
     embed_blog.set_footer(text=f"Creado por {author}", icon_url=author.display_avatar.url)
 
-    msg = await channel.send(content=f"{author.mention}", embed=embed_blog)
-    await msg.add_reaction("👍")
+    await channel.send(embed=embed_blog)
 
-    print(f"[DEBUG] Blog {msg.id} enviado a revisión")
+    # 🔹 Embed final
+    embed_final = discord.Embed(color=discord.Color.blue())
+    if imagen_final:
+        embed_final.set_image(url=imagen_final)
 
-    # 🔹 CHECK CORREGIDO (solo este mensaje)
+    final_msg = await channel.send(embed=embed_final)
+    await final_msg.add_reaction("👍")  # 👍 solo en el embed final
+
+    print(f"[DEBUG] Blog {final_msg.id} enviado a revisión")
+
+    # 🔹 CHECK para aprobación solo en el embed final
     def check(reaction, user):
         return (
-            reaction.message.id == msg.id and
+            reaction.message.id == final_msg.id and
             str(reaction.emoji) == "👍" and
             user.id != client.user.id and
             any(role.id == ADMIN_ROLE_ID for role in user.roles)
@@ -65,20 +75,14 @@ async def post_blog_for_review(
             timeout=28800,  # 8 horas
             check=check
         )
-        print(f"[DEBUG] Blog {msg.id} aprobado por {user}")
+        print(f"[DEBUG] Blog {final_msg.id} aprobado por {user}")
     except asyncio.TimeoutError:
-        print(f"[DEBUG] Blog {msg.id} expiró sin aprobación")
+        print(f"[DEBUG] Blog {final_msg.id} expiró sin aprobación")
         return
 
-    # 🔹 Embed imagen final
-    if imagen_final:
-        embed_final = discord.Embed(color=discord.Color.blue())
-        embed_final.set_image(url=imagen_final)
-        await channel.send(embed=embed_final)
-
-    # 🔹 Solo este blog se enviará a los usuarios con news activadas
+    # 🔹 Enviar a usuarios con news activadas
     user_ids = await get_users_with_news_enabled()
-    print(f"[DEBUG] Enviando blog {msg.id} a {len(user_ids)} usuarios")
+    print(f"[DEBUG] Enviando blog {final_msg.id} a {len(user_ids)} usuarios")
 
     for user_id in user_ids:
         try:
