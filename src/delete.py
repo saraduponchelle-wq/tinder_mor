@@ -4,10 +4,22 @@ import asyncpg
 import os
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+
 EMOJI_YES = str(os.getenv("YES"))
 EMOJI_NO = str(os.getenv("NO"))
 
-async def delete_callback(interaction: discord.Interaction, user: discord.Member):
+
+async def delete_callback(interaction: discord.Interaction, user: discord.User):
+
+    # 🔹 Verificar que se use en servidor
+    if interaction.guild is None:
+        await interaction.response.send_message(
+            f"{EMOJI_NO} Este comando solo puede usarse en un servidor.",
+            ephemeral=True
+        )
+        return
+
+    # 🔹 Verificar permisos admin
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message(
             f"{EMOJI_NO} Solo los administradores pueden usar este comando.",
@@ -16,22 +28,48 @@ async def delete_callback(interaction: discord.Interaction, user: discord.Member
         return
 
     conn = await asyncpg.connect(DATABASE_URL)
-    row = await conn.fetchrow("SELECT message_id FROM profiles WHERE user_id = $1", user.id)
 
-    if row and row["message_id"]:
+    # 🔹 Verificar si el perfil existe
+    row = await conn.fetchrow(
+        "SELECT message_id FROM profiles WHERE user_id = $1",
+        user.id
+    )
+
+    if not row:
+        await conn.close()
+        await interaction.response.send_message(
+            f"{EMOJI_NO} {user.mention} no tiene un perfil registrado.",
+            ephemeral=True
+        )
+        return
+
+    # 🔹 Intentar borrar el mensaje si existe
+    message_id = row["message_id"]
+
+    if message_id:
         try:
-            msg = await interaction.channel.fetch_message(row["message_id"])
+            msg = await interaction.channel.fetch_message(message_id)
             await msg.delete()
-        except:
+        except discord.NotFound:
+            pass
+        except discord.Forbidden:
+            pass
+        except discord.HTTPException:
             pass
 
-    await conn.execute("DELETE FROM profiles WHERE user_id = $1", user.id)
+    # 🔹 Borrar de la base de datos
+    await conn.execute(
+        "DELETE FROM profiles WHERE user_id = $1",
+        user.id
+    )
+
     await conn.close()
 
     await interaction.response.send_message(
         f"{EMOJI_YES} Perfil de {user.mention} eliminado correctamente.",
         ephemeral=True
     )
+
 
 delete = app_commands.Command(
     name="delete",
