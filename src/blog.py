@@ -143,7 +143,8 @@ class BlogImageModal(discord.ui.Modal, title="Añadir URL de la imagen"):
             return
 
         embed = discord.Embed(
-            title=f"{EMOJI_NOTI} Nuevo Blog de {self.author.display_name}",
+            title=f"{EMOJI_NOTI} Nuevo Blog de {self.author.display_name}\n
+            ⚬──────────────────────────────✧──────────────────────────────⚬",
             description=self.blog_text,
             color=discord.Color.blue()
         )
