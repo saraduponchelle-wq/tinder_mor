@@ -8,6 +8,7 @@ BLOG_CHANNEL_ID = int(os.getenv("BLOG_CHANNEL_ID"))
 BLOG_REVIEW_CHANNEL_ID = int(os.getenv("BLOG_REVIEW_CHANNEL_ID"))
 ADMIN_ROLE_ID = int(os.getenv("ADMIN_ROLE_ID"))
 EMOJI_NOTI = str(os.getenv("NOTI"))
+EMOJI_MES = str(os.getenv("MES"))
 
 from src.blog_notifications import get_users_with_news_enabled
 
@@ -65,7 +66,7 @@ async def post_blog_for_review(client: discord.Client, author: discord.User, blo
                     try:
                         u = await client.fetch_user(user_id)
                         await u.send(embed=embed)
-                        await u.send(f"💬 Si estás interesado, escríbele a {author.mention}")
+                        await u.send(f"{EMOJI_MES} Si estás interesado, escríbele a {author.mention}")
                     except Exception as e:
                         print(f"[ERROR] No se pudo enviar a {user_id}: {e}")
 
