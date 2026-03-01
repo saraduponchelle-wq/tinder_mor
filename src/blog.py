@@ -50,11 +50,14 @@ async def post_blog_for_review(client: discord.Client, author: discord.User, blo
 
     # Enviar a todos los usuarios con news=True
     user_ids = await get_users_with_news_enabled()
-    print(f"[DEBUG] Enviando blog a {len(user_ids)} usuarios con news=True")
+    print(f"[DEBUG] Enviando blog a {len(user_ids)} usuarios")
+
     for user_id in user_ids:
         try:
             u = await client.fetch_user(user_id)
             await u.send(embed=embed)
+            # Enviar mensaje adicional con la mención del autor
+            await u.send(f"💬 Si estás interesado, escríbele a {author.mention}")
         except Exception as e:
             print(f"[ERROR] No se pudo enviar a {user_id}: {e}")
 
