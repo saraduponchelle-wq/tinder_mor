@@ -23,9 +23,10 @@ async def post_blog_for_review(client: discord.Client, author: discord.User, blo
                     return
 
                 embed = discord.Embed(
-                    title=f"📖 Blog de {author.display_name}",
-                    description=blog_text,
-                    color=discord.Color.blue()
+                    title=f"""{EMOJI_NOTI} Nuevo Blog de {self.author.display_name}
+                ⚬──────────────────────────────✧──────────────────────────────⚬""",
+                    description=self.blog_text,
+                    color=discord.Color.red()
                 )
                 if image_url:
                     embed.set_image(url=image_url)
@@ -143,10 +144,10 @@ class BlogImageModal(discord.ui.Modal, title="Añadir URL de la imagen"):
             return
 
         embed = discord.Embed(
-            title=f"{EMOJI_NOTI} Nuevo Blog de {self.author.display_name}\n
-            ⚬──────────────────────────────✧──────────────────────────────⚬",
+            title=f"""{EMOJI_NOTI} Nuevo Blog de {self.author.display_name}
+        ⚬──────────────────────────────✧──────────────────────────────⚬""",
             description=self.blog_text,
-            color=discord.Color.blue()
+            color=discord.Color.red()
         )
         embed.set_image(url=image_url)
         embed.set_footer(text=f"Creado por {self.author}", icon_url=self.author.display_avatar.url)
