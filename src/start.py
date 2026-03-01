@@ -3,6 +3,17 @@ from discord import app_commands
 import asyncpg
 import os
 
+DATABASE_URL = os.getenv("DATABASE_URL")
+EMOJI_GOLDNOTI = str(os.getenv("GOLDNOTI"))
+EMOJI_INTEREST = str(os.getenv("INTEREST"))
+EMOJI_LINES = str(os.getenv("LINES"))
+EMOJI_STAR = str(os.getenv("STAR"))
+EMOJI_HEART = str(os.getenv("HEART"))
+EMOJI_BROKENHEART = str(os.getenv("BROKENHEART"))
+EMOJI_FIRE = str(os.getenv("FIRE"))
+EMOJI_YES = str(os.getenv("YES"))
+EMOJI_NO = str(os.getenv("NO"))
+
 # ========================
 # SELECT: Intereses
 # ========================
@@ -76,11 +87,11 @@ class ProfileModal(discord.ui.Modal, title="Crea tu perfil"):
                 pass
 
         # Crear embed
-        embed = discord.Embed(title="💘 Perfil creado", color=discord.Color.pink())
-        embed.add_field(name="Name", value=self.name.value, inline=False)
-        embed.add_field(name="Que te interesa", value=", ".join(self.interests), inline=False)
-        embed.add_field(name="Lineas", value=self.lines, inline=False)
-        embed.add_field(name="Descripcion", value=self.description.value, inline=False)
+        embed = discord.Embed(title=f"{EMOJI_HEART} Perfil creado", color=discord.Color.pink())
+        embed.add_field(name=f"{EMOJI_FIRE}Name", value=self.name.value, inline=False)
+        embed.add_field(name=f"{EMOJI_INTEREST}Intereses", value=", ".join(self.interests), inline=False)
+        embed.add_field(name=f"{EMOJI_LINES}Lineas", value=self.lines, inline=False)
+        embed.add_field(name=f"{EMOJI_STAR}BIO", value=self.description.value, inline=False)
         embed.set_thumbnail(url=interaction.user.display_avatar.url)
 
         # Enviar mensaje
@@ -114,7 +125,7 @@ class StartView(discord.ui.View):
     async def create_profile(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not self.interests or not self.lines:
             await interaction.response.send_message(
-                "❌ Debes seleccionar intereses y líneas primero.",
+                f"{EMOJI_NO} Debes seleccionar intereses y líneas primero.",
                 ephemeral=True
             )
             return
@@ -133,13 +144,13 @@ async def start_callback(interaction: discord.Interaction):
 
     if row:
         await interaction.response.send_message(
-            "❌ Ya tienes un perfil creado. Usa `/update` para modificarlo.",
+            f"{EMOJI_NO} Ya tienes un perfil creado. Usa `/update` para modificarlo.",
             ephemeral=True
         )
         return
 
     embed = discord.Embed(
-        title="💘 Crea tu perfil Tinder Discord",
+        title=f"{EMOJI_HEART} Crea tu perfil Tinder Discord",
         description="Selecciona tus preferencias y luego pulsa **Crear Perfil**.",
         color=discord.Color.pink()
     )

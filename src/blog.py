@@ -9,6 +9,8 @@ BLOG_REVIEW_CHANNEL_ID = int(os.getenv("BLOG_REVIEW_CHANNEL_ID"))
 ADMIN_ROLE_ID = int(os.getenv("ADMIN_ROLE_ID"))
 EMOJI_NOTI = str(os.getenv("NOTI"))
 EMOJI_MES = str(os.getenv("MES"))
+EMOJI_YES = str(os.getenv("YES"))
+EMOJI_NO = str(os.getenv("NO"))
 
 from src.blog_notifications import get_users_with_news_enabled
 
@@ -93,7 +95,7 @@ class BlogTextModal(discord.ui.Modal, title="Escribe tu blog"):
         # Preguntar si quiere añadir imagen
         view = BlogImageButtonView(self.author, blog_text)
         await interaction.response.send_message(
-            "✅ Texto recibido. ¿Quieres añadir una imagen a tu blog?",
+            f"{EMOJI_YES} Texto recibido. ¿Quieres añadir una imagen a tu blog?",
             view=view,
             ephemeral=True
         )
@@ -110,7 +112,7 @@ class BlogImageButtonView(discord.ui.View):
     @discord.ui.button(label="Añadir imagen", style=discord.ButtonStyle.primary)
     async def add_image(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.author.id:
-            await interaction.response.send_message("❌ Solo el autor puede usar este botón.", ephemeral=True)
+            await interaction.response.send_message(f"{EMOJI_NO} Solo el autor puede usar este botón.", ephemeral=True)
             return
 
         # Abrir modal para pegar URL de la imagen
@@ -140,7 +142,7 @@ class BlogImageModal(discord.ui.Modal, title="Añadir URL de la imagen"):
         # Publicar en canal principal
         channel = interaction.guild.get_channel(BLOG_CHANNEL_ID)
         if not channel:
-            await interaction.response.send_message("❌ Canal de blogs no encontrado.", ephemeral=True)
+            await interaction.response.send_message(f"{EMOJI_NO} Canal de blogs no encontrado.", ephemeral=True)
             return
 
         embed = discord.Embed(
@@ -152,7 +154,7 @@ class BlogImageModal(discord.ui.Modal, title="Añadir URL de la imagen"):
         embed.set_footer(text=f"Creado por {self.author}", icon_url=self.author.display_avatar.url)
 
         await channel.send(content=f"{self.author.mention}", embed=embed)
-        await interaction.response.send_message("✅ Tu blog ha sido publicado con imagen!", ephemeral=True)
+        await interaction.response.send_message(f"{EMOJI_YES} Tu blog ha sido publicado con imagen!", ephemeral=True)
 
         # Enviar a revisión
         await post_blog_for_review(interaction.client, self.author, self.blog_text, image_url)

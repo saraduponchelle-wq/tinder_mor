@@ -4,11 +4,13 @@ import asyncpg
 import os
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+EMOJI_YES = str(os.getenv("YES"))
+EMOJI_NO = str(os.getenv("NO"))
 
 async def delete_callback(interaction: discord.Interaction, user: discord.Member):
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message(
-            "❌ Solo los administradores pueden usar este comando.",
+            f"{EMOJI_NO} Solo los administradores pueden usar este comando.",
             ephemeral=True
         )
         return
@@ -27,7 +29,7 @@ async def delete_callback(interaction: discord.Interaction, user: discord.Member
     await conn.close()
 
     await interaction.response.send_message(
-        f"✅ Perfil de {user.mention} eliminado correctamente.",
+        f"{EMOJI_YES} Perfil de {user.mention} eliminado correctamente.",
         ephemeral=True
     )
 

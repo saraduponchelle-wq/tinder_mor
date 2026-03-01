@@ -5,6 +5,9 @@ import discord
 from discord import app_commands, Interaction
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+EMOJI_YES = str(os.getenv("YES"))
+EMOJI_GOLDNOTI = str(os.getenv("GOLDNOTI"))
+EMOJI_NO = str(os.getenv("NO"))
 
 # ===============================
 # DB HELPERS
@@ -78,9 +81,9 @@ async def send_blog_to_users(bot: discord.Client, embed: discord.Embed, author: 
 async def news_callback(interaction: Interaction, activar: bool):
     """Comando /news para activar/desactivar notificaciones"""
     await set_news_notifications(interaction.user.id, activar)
-    estado = "activadas ✅" if activar else "desactivadas ❌"
+    estado = f"activadas {EMOJI_YES}" if activar else f"desactivadas {EMOJI_NO}"
     await interaction.response.send_message(
-        f"📢 Tus notificaciones de blogs han sido {estado}", ephemeral=True
+        f"{EMOJI_GOLDNOTI} Tus notificaciones de blogs han sido {estado}", ephemeral=True
     )
 
 

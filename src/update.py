@@ -4,6 +4,17 @@ import asyncpg
 import os
 from src.start import ProfileModal, StartView
 
+DATABASE_URL = os.getenv("DATABASE_URL")
+EMOJI_GOLDNOTI = str(os.getenv("GOLDNOTI"))
+EMOJI_INTEREST = str(os.getenv("INTEREST"))
+EMOJI_LINES = str(os.getenv("LINES"))
+EMOJI_STAR = str(os.getenv("STAR"))
+EMOJI_HEART = str(os.getenv("HEART"))
+EMOJI_BROKENHEART = str(os.getenv("BROKENHEART"))
+EMOJI_FIRE = str(os.getenv("FIRE"))
+EMOJI_YES = str(os.getenv("YES"))
+EMOJI_NO = str(os.getenv("NO"))
+
 class UpdateView(StartView):
     """Versión de StartView para update, con botón para modal"""
 
@@ -27,7 +38,7 @@ async def update_callback(interaction: discord.Interaction):
 
     if not row:
         await interaction.response.send_message(
-            "❌ No tienes un perfil creado. Usa `/start` para crearlo.",
+            f"{EMOJI_NO} No tienes un perfil creado. Usa `/start` para crearlo.",
             ephemeral=True
         )
         return
@@ -38,7 +49,7 @@ async def update_callback(interaction: discord.Interaction):
     view.default_description = row["description"]
 
     embed = discord.Embed(
-        title="💘 Actualiza tu perfil Tinder Discord",
+        title=f"{EMOJI_HEART} Actualiza tu perfil Tinder Discord",
         description="Modifica tus preferencias y pulsa **Actualizar Nombre y Descripción** si quieres cambiar texto.",
         color=discord.Color.pink()
     )
