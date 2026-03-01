@@ -131,7 +131,7 @@ async def send_match(user: discord.User, profile_data: dict, other_user: discord
 class LikeBackView(discord.ui.View):
 
     def __init__(self, liker_id: int):
-        super().__init__(timeout=86400)  # 24 horas
+        super().__init__(timeout=604800)  # 24 horas
         self.liker_id = liker_id
 
     async def on_timeout(self):
@@ -173,7 +173,7 @@ class LikeBackView(discord.ui.View):
 class TinderView(discord.ui.View):
 
     def __init__(self, profiles, author_id):
-        super().__init__(timeout=60)
+        super().__init__(timeout=900)
         self.profiles = profiles
         self.index = 0
         self.author_id = author_id
