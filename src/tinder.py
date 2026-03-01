@@ -3,12 +3,24 @@ from discord import app_commands
 import asyncpg
 import os
 
+# ===============================
+# EMOJIS NORMALES (TEXTO / EMBEDS)
+# ===============================
+
 EMOJI_GOLDNOTI = str(os.getenv("GOLDNOTI"))
 EMOJI_INTEREST = str(os.getenv("INTEREST"))
 EMOJI_LINES = str(os.getenv("LINES"))
 EMOJI_STAR = str(os.getenv("STAR"))
 EMOJI_HEART = str(os.getenv("HEART"))
 EMOJI_BROKENHEART = str(os.getenv("BROKENHEART"))
+
+# ===============================
+# EMOJIS PARA BOTONES (PERSONALIZADOS)
+# ===============================
+
+EMOJI_BOTON_HEART = discord.PartialEmoji.from_str("<a:heart:1477738562433581338>")
+EMOJI_BOTON_BROKENHEART = discord.PartialEmoji.from_str("<:brokenheart:1477739060423299202>")
+
 
 # ===============================
 # DB HELPERS
@@ -90,19 +102,19 @@ def create_profile_embed(profile_data: dict, discord_user: discord.User, show_di
     )
 
     embed.add_field(
-        name = f"{EMOJI_INTEREST}Intereses",
+        name=f"{EMOJI_INTEREST} Intereses",
         value=", ".join(profile_data["interests"] or ["Ninguno"]),
         inline=False
     )
 
     embed.add_field(
-        name=f"{EMOJI_LINES}Líneas",
+        name=f"{EMOJI_LINES} Líneas",
         value=profile_data["lines"] or "Sin líneas",
         inline=False
     )
 
     embed.add_field(
-        name=f"{EMOJI_STAR}Bio",
+        name=f"{EMOJI_STAR} Bio",
         value=profile_data["description"] or "Sin descripción",
         inline=False
     )
@@ -125,27 +137,29 @@ def create_profile_embed(profile_data: dict, discord_user: discord.User, show_di
 
 async def send_match(user: discord.User, profile_data: dict, other_user: discord.User):
     embed = create_profile_embed(profile_data, other_user, show_discord=True)
-
     embed.title = f"{EMOJI_HEART} ¡Has hecho match con {profile_data['name']}!"
-
     await user.send(embed=embed)
 
 
 # ===============================
-# BOTONES PARA ACEPTAR LIKE
+# BOTONES LIKE BACK
 # ===============================
 
 class LikeBackView(discord.ui.View):
 
     def __init__(self, liker_id: int):
-        super().__init__(timeout=604800)  # 24 horas
+        super().__init__(timeout=604800)  # 7 días
         self.liker_id = liker_id
 
     async def on_timeout(self):
         for item in self.children:
             item.disabled = True
 
-    @discord.ui.button(label=f"{EMOJI_HEART} Hacer Match", style=discord.ButtonStyle.success)
+    @discord.ui.button(
+        label="Hacer Match",
+        style=discord.ButtonStyle.success,
+        emoji=EMOJI_BOTON_HEART
+    )
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         await add_match(interaction.user.id, self.liker_id)
@@ -164,7 +178,11 @@ class LikeBackView(discord.ui.View):
             view=None
         )
 
-    @discord.ui.button(label=f"{EMOJI_BROKENHEART} Rechazar", style=discord.ButtonStyle.danger)
+    @discord.ui.button(
+        label="Rechazar",
+        style=discord.ButtonStyle.danger,
+        emoji=EMOJI_BOTON_BROKENHEART
+    )
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         await interaction.response.edit_message(
@@ -188,18 +206,25 @@ class TinderView(discord.ui.View):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         return interaction.user.id == self.author_id
 
-    @discord.ui.button(label=f"{EMOJI_BROKENHEART} Pass", style=discord.ButtonStyle.danger)
+    @discord.ui.button(
+        label="Pass",
+        style=discord.ButtonStyle.danger,
+        emoji=EMOJI_BOTON_BROKENHEART
+    )
     async def pass_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
         await self.next_profile(interaction)
 
-    @discord.ui.button(label=f"{EMOJI_HEART} Like", style=discord.ButtonStyle.success)
+    @discord.ui.button(
+        label="Like",
+        style=discord.ButtonStyle.success,
+        emoji=EMOJI_BOTON_HEART
+    )
     async def match_button(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         await interaction.response.defer()
 
         target_id = self.profiles[self.index]["user_id"]
-
         await add_match(self.author_id, target_id)
 
         if await is_mutual_match(self.author_id, target_id):
@@ -220,7 +245,6 @@ class TinderView(discord.ui.View):
             profile_liker = await get_full_profile(self.author_id)
 
             embed = create_profile_embed(profile_liker, liker_user, show_discord=False)
-
             embed.title = f"{EMOJI_GOLDNOTI} A alguien le ha gustado tu perfil"
 
             try:
@@ -241,7 +265,6 @@ class TinderView(discord.ui.View):
             self.index = 0
 
         profile = self.profiles[self.index]
-
         user = await interaction.client.fetch_user(profile["user_id"])
 
         embed = create_profile_embed(profile, user, show_discord=False)
@@ -273,7 +296,6 @@ async def tinder_callback(interaction: discord.Interaction):
     first = profiles[0]
 
     user = await interaction.client.fetch_user(first["user_id"])
-
     embed = create_profile_embed(first, user, show_discord=False)
 
     view = TinderView(profiles, interaction.user.id)
@@ -286,7 +308,7 @@ async def tinder_callback(interaction: discord.Interaction):
 
 
 # ===============================
-# EXPORTABLE
+# EXPORTABLE COMMAND
 # ===============================
 
 tinder = app_commands.Command(
