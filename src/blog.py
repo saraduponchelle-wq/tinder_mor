@@ -7,6 +7,7 @@ import os
 BLOG_CHANNEL_ID = int(os.getenv("BLOG_CHANNEL_ID"))
 BLOG_REVIEW_CHANNEL_ID = int(os.getenv("BLOG_REVIEW_CHANNEL_ID"))
 ADMIN_ROLE_ID = int(os.getenv("ADMIN_ROLE_ID"))
+EMOJI_RANDOM = str(os.getenv("NOTI"))
 
 from src.blog_notifications import get_users_with_news_enabled
 
@@ -142,7 +143,7 @@ class BlogImageModal(discord.ui.Modal, title="Añadir URL de la imagen"):
             return
 
         embed = discord.Embed(
-            title=f"📖 Blog de {self.author.display_name}",
+            title=f"{EMOJI_NOTI} Nuevo Blog de {self.author.display_name}",
             description=self.blog_text,
             color=discord.Color.blue()
         )
