@@ -13,53 +13,59 @@ from src.blog_notifications import get_users_with_news_enabled
 # ===============================
 # Función para enviar blog a revisión
 # ===============================
-async def post_blog_for_review(client: discord.Client, author: discord.User, blog_text: str, image_url: str | None):
-    """Publica el blog en el canal de revisión y espera aprobación de admin"""
-    channel = client.get_channel(BLOG_REVIEW_CHANNEL_ID)
-    if not channel:
-        print("[ERROR] Canal de revisión de blogs no encontrado")
-        return
+            async def post_blog_for_review(client: discord.Client, author: discord.User, blog_text: str, image_url: str | None):
+                """Publica el blog en el canal de revisión y espera aprobación de admin"""
+                channel = client.get_channel(BLOG_REVIEW_CHANNEL_ID)
+                if not channel:
+                    print("[ERROR] Canal de revisión de blogs no encontrado")
+                    return
 
-    embed = discord.Embed(
-        title=f"📖 Blog de {author.display_name}",
-        description=blog_text,
-        color=discord.Color.blue()
-    )
-    if image_url:
-        embed.set_image(url=image_url)
-    embed.set_footer(text=f"Creado por {author}", icon_url=author.display_avatar.url)
+                embed = discord.Embed(
+                    title=f"📖 Blog de {author.display_name}",
+                    description=blog_text,
+                    color=discord.Color.blue()
+                )
+                if image_url:
+                    embed.set_image(url=image_url)
+                embed.set_footer(text=f"Creado por {author}", icon_url=author.display_avatar.url)
 
-    msg = await channel.send(content=f"{author.mention}", embed=embed)
-    await msg.add_reaction("👍")
+                # 🔹 Enviamos el mensaje de revisión
+                msg = await channel.send(content=f"{author.mention}", embed=embed)
+                await msg.add_reaction("👍")
 
-    print(f"[DEBUG] Blog enviado a revisión, esperando aprobación (8h máximo)")
+                print(f"[DEBUG] Blog {msg.id} enviado a revisión")
 
-    def check(reaction, user):
-        return (
-            str(reaction.emoji) == "👍" and
-            user.id != client.user.id and
-            any(role.id == ADMIN_ROLE_ID for role in user.roles)
-        )
+                # 🔹 CHECK CORREGIDO (MUY IMPORTANTE)
+                def check(reaction, user):
+                    return (
+                        reaction.message.id == msg.id and  # ✅ SOLO ESTE MENSAJE
+                        str(reaction.emoji) == "👍" and
+                        user.id != client.user.id and
+                        any(role.id == ADMIN_ROLE_ID for role in user.roles)
+                    )
 
-    try:
-        reaction, user = await client.wait_for("reaction_add", timeout=28800, check=check)
-        print(f"[DEBUG] Blog aprobado por {user}")
-    except asyncio.TimeoutError:
-        print("[DEBUG] Tiempo de revisión agotado, blog no aprobado")
-        return
+                try:
+                    reaction, user = await client.wait_for(
+                        "reaction_add",
+                        timeout=28800,  # 8 horas
+                        check=check
+                    )
+                    print(f"[DEBUG] Blog {msg.id} aprobado por {user}")
+                except asyncio.TimeoutError:
+                    print(f"[DEBUG] Blog {msg.id} expiró sin aprobación")
+                    return
 
-    # Enviar a todos los usuarios con news=True
-    user_ids = await get_users_with_news_enabled()
-    print(f"[DEBUG] Enviando blog a {len(user_ids)} usuarios")
+                # 🔹 Solo este blog se enviará
+                user_ids = await get_users_with_news_enabled()
+                print(f"[DEBUG] Enviando blog {msg.id} a {len(user_ids)} usuarios")
 
-    for user_id in user_ids:
-        try:
-            u = await client.fetch_user(user_id)
-            await u.send(embed=embed)
-            # Enviar mensaje adicional con la mención del autor
-            await u.send(f"💬 Si estás interesado, escríbele a {author.mention}")
-        except Exception as e:
-            print(f"[ERROR] No se pudo enviar a {user_id}: {e}")
+                for user_id in user_ids:
+                    try:
+                        u = await client.fetch_user(user_id)
+                        await u.send(embed=embed)
+                        await u.send(f"💬 Si estás interesado, escríbele a {author.mention}")
+                    except Exception as e:
+                        print(f"[ERROR] No se pudo enviar a {user_id}: {e}")
 
 # ===============================
 # Modal de texto del blog

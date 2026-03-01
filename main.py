@@ -35,42 +35,6 @@ class MyBot(discord.Client):
 
 bot = MyBot()
 
-
-@bot.event
-async def on_raw_reaction_add(payload: RawReactionActionEvent):
-    # Solo nos interesa 👍 en el canal de revisión
-    if payload.channel_id != BLOG_REVIEW_CHANNEL_ID or str(payload.emoji) != "👍":
-        return
-
-    guild = bot.get_guild(payload.guild_id)
-    member = guild.get_member(payload.user_id)
-    if not member or ADMIN_ROLE_ID not in [role.id for role in member.roles]:
-        return  # no es admin
-
-    channel = guild.get_channel(payload.channel_id)
-    msg = await channel.fetch_message(payload.message_id)
-
-    # Obtener embed y autor
-    if not msg.embeds:
-        return
-    embed = msg.embeds[0]
-
-    # Buscar autor a partir del embed footer
-    author_name = embed.footer.text.replace("Creado por ", "")
-    blog_text = embed.description
-    image_url = embed.image.url if embed.image else None
-
-    # Enviar mensaje a todos los usuarios con news=True
-    user_ids = await get_users_with_news_enabled()
-    print(f"[DEBUG] Enviando blog a {len(user_ids)} usuarios")
-
-    for user_id in user_ids:
-        user = await bot.fetch_user(user_id)
-        try:
-            await user.send(embed=embed)
-        except Exception as e:
-            print(f"[ERROR] No se pudo enviar a {user_id}: {e}")
-
 @bot.event
 async def on_ready():
     print(f"🤖 Conectado como {bot.user}")
