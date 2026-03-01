@@ -72,17 +72,13 @@ async def get_full_profile(user_id: int):
 
 
 # ===============================
-# ENVIAR PERFIL (CONTROL DISCORD)
+# EMBEDS
 # ===============================
 
-async def send_profile(
-    receiver: discord.User,
-    profile_data: dict,
-    target_user: discord.User,
-    show_discord: bool = False
-):
+def create_profile_embed(profile_data: dict, discord_user: discord.User, show_discord=False):
+
     embed = discord.Embed(
-        title=f"💘 Has hecho match con {profile_data['name']}",
+        title=f"💘 Perfil de {profile_data['name']}",
         color=discord.Color.pink()
     )
 
@@ -104,17 +100,28 @@ async def send_profile(
         inline=False
     )
 
-    embed.set_thumbnail(url=target_user.display_avatar.url)
+    embed.set_thumbnail(url=discord_user.display_avatar.url)
 
-    # Solo mostrar Discord si está permitido
     if show_discord:
         embed.add_field(
             name="👤 Usuario de Discord",
-            value=target_user.mention,
+            value=discord_user.mention,
             inline=False
         )
 
-    await receiver.send(embed=embed)
+    return embed
+
+
+# ===============================
+# ENVIAR MATCH FINAL
+# ===============================
+
+async def send_match(user: discord.User, profile_data: dict, other_user: discord.User):
+    embed = create_profile_embed(profile_data, other_user, show_discord=True)
+
+    embed.title = f"💘 ¡Has hecho match con {profile_data['name']}!"
+
+    await user.send(embed=embed)
 
 
 # ===============================
@@ -142,9 +149,8 @@ class LikeBackView(discord.ui.View):
         profile1 = await get_full_profile(user1.id)
         profile2 = await get_full_profile(user2.id)
 
-        # 🔥 Match aceptado manualmente → SIN mostrar Discord
-        await send_profile(user1, profile2, user2, show_discord=False)
-        await send_profile(user2, profile1, user1, show_discord=False)
+        await send_match(user1, profile2, user2)
+        await send_match(user2, profile1, user1)
 
         await interaction.response.edit_message(
             content="💘 ¡Match realizado!",
@@ -197,16 +203,22 @@ class TinderView(discord.ui.View):
             profile1 = await get_full_profile(user1.id)
             profile2 = await get_full_profile(user2.id)
 
-            # 🔥 Match instantáneo → mostrar Discord
-            await send_profile(user1, profile2, user2, show_discord=True)
-            await send_profile(user2, profile1, user1, show_discord=True)
+            await send_match(user1, profile2, user2)
+            await send_match(user2, profile1, user1)
 
         else:
             target_user = await interaction.client.fetch_user(target_id)
+            liker_user = await interaction.client.fetch_user(self.author_id)
+
+            profile_liker = await get_full_profile(self.author_id)
+
+            embed = create_profile_embed(profile_liker, liker_user, show_discord=False)
+
+            embed.title = "💌 A alguien le ha gustado tu perfil"
 
             try:
                 await target_user.send(
-                    "💌 A alguien le ha gustado tu perfil.\n¿Quieres hacer match?",
+                    embed=embed,
                     view=LikeBackView(self.author_id)
                 )
             except Exception as e:
@@ -223,31 +235,9 @@ class TinderView(discord.ui.View):
 
         profile = self.profiles[self.index]
 
-        embed = discord.Embed(
-            title=f"💘 Perfil de {profile['name']}",
-            color=discord.Color.pink()
-        )
-
-        embed.add_field(
-            name="Intereses",
-            value=", ".join(profile["interests"] or ["Ninguno"]),
-            inline=False
-        )
-
-        embed.add_field(
-            name="Líneas",
-            value=profile["lines"] or "Sin líneas",
-            inline=False
-        )
-
-        embed.add_field(
-            name="Descripción",
-            value=profile["description"] or "Sin descripción",
-            inline=False
-        )
-
         user = await interaction.client.fetch_user(profile["user_id"])
-        embed.set_thumbnail(url=user.display_avatar.url)
+
+        embed = create_profile_embed(profile, user, show_discord=False)
 
         await interaction.edit_original_response(
             embed=embed,
@@ -275,31 +265,9 @@ async def tinder_callback(interaction: discord.Interaction):
     profiles = [dict(row) for row in rows]
     first = profiles[0]
 
-    embed = discord.Embed(
-        title=f"💘 Perfil de {first['name']}",
-        color=discord.Color.pink()
-    )
-
-    embed.add_field(
-        name="Intereses",
-        value=", ".join(first["interests"] or ["Ninguno"]),
-        inline=False
-    )
-
-    embed.add_field(
-        name="Líneas",
-        value=first["lines"] or "Sin líneas",
-        inline=False
-    )
-
-    embed.add_field(
-        name="Descripción",
-        value=first["description"] or "Sin descripción",
-        inline=False
-    )
-
     user = await interaction.client.fetch_user(first["user_id"])
-    embed.set_thumbnail(url=user.display_avatar.url)
+
+    embed = create_profile_embed(first, user, show_discord=False)
 
     view = TinderView(profiles, interaction.user.id)
 
