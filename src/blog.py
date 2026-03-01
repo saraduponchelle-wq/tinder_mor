@@ -8,7 +8,7 @@ BLOG_CHANNEL_ID = int(os.getenv("BLOG_CHANNEL_ID"))
 # ===============================
 # MODAL PARA TEXTO DEL BLOG
 # ===============================
-class BlogTextModal(discord.ui.Modal, title="Escribe el texto de tu blog"):
+class BlogTextModal(discord.ui.Modal, title="Escribe tu blog"):
     blog_text_input = discord.ui.TextInput(
         label="Texto del blog",
         style=discord.TextStyle.paragraph,
@@ -26,9 +26,8 @@ class BlogTextModal(discord.ui.Modal, title="Escribe el texto de tu blog"):
         blog_text = self.blog_text_input.value.strip()
         print(f"[DEBUG] Texto del blog recibido: {blog_text}")
 
-        # Publicar en canal
         channel = interaction.guild.get_channel(BLOG_CHANNEL_ID)
-        if channel is None:
+        if not channel:
             await interaction.response.send_message("❌ Canal de blogs no encontrado.", ephemeral=True)
             return
 
@@ -64,9 +63,9 @@ class BlogImageModal(discord.ui.Modal, title="Ingresa el link de la imagen del b
         image_url = self.image_url_input.value.strip()
         print(f"[DEBUG] Link recibido: {image_url}")
 
-        # Abrir modal para el texto del blog
-        text_modal = BlogTextModal(self.author, image_url)
-        await interaction.response.send_modal(text_modal)
+        # Abrir modal de texto usando `interaction.response.send_modal`
+        # 🔹 Esto funciona solo si llamamos desde un **defer** previo
+        await interaction.response.send_modal(BlogTextModal(self.author, image_url))
 
 
 # ===============================
@@ -74,8 +73,7 @@ class BlogImageModal(discord.ui.Modal, title="Ingresa el link de la imagen del b
 # ===============================
 async def crearblog_callback(interaction: discord.Interaction):
     print(f"[DEBUG] /blog usado por {interaction.user}")
-    modal = BlogImageModal(interaction.user)
-    await interaction.response.send_modal(modal)
+    await interaction.response.send_modal(BlogImageModal(interaction.user))
 
 
 # ===============================
