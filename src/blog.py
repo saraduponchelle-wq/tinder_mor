@@ -10,10 +10,11 @@ ADMIN_ROLE_ID = int(os.getenv("ADMIN_ROLE_ID"))
 
 from src.blog_notifications import get_users_with_news_enabled
 
+
 # ===============================
 # Función para enviar blog a revisión
 # ===============================
-            async def post_blog_for_review(client: discord.Client, author: discord.User, blog_text: str, image_url: str | None):
+async def post_blog_for_review(client: discord.Client, author: discord.User, blog_text: str, image_url: str | None):
                 """Publica el blog en el canal de revisión y espera aprobación de admin"""
                 channel = client.get_channel(BLOG_REVIEW_CHANNEL_ID)
                 if not channel:

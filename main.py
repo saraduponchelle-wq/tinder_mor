@@ -22,7 +22,7 @@ class MyBot(discord.Client):
         from src.blog import blog
         from src.blog_notifications import news
         
-        bot.tree.add_command(blog)
+        self.tree.add_command(blog)
         self.tree.add_command(start)
         self.tree.add_command(update)
         self.tree.add_command(show)
