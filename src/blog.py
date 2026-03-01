@@ -46,7 +46,9 @@ class BlogModal(discord.ui.Modal, title="Nuevo Blog"):
 
             if has_attachment:
                 attachment = m.attachments[0]
-                if any(attachment.filename.lower().endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".gif", ".webp"]):
+                if attachment.content_type and attachment.content_type.startswith("image/"):
+                    is_image = True
+                elif any(attachment.filename.lower().endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".gif", ".webp"]):
                     is_image = True
 
             print(f"[DEBUG] Mensaje recibido: author={m.author.id}, channel={m.channel.id}, correct_user={correct_user}, correct_channel={correct_channel}, has_attachment={has_attachment}, is_image={is_image}, filename={(m.attachments[0].filename if has_attachment else 'N/A')})")
