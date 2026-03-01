@@ -2,7 +2,6 @@ import discord
 from discord import app_commands
 import asyncpg
 import os
-import asyncio
 
 # ===============================
 # DB HELPERS
@@ -73,12 +72,17 @@ async def get_full_profile(user_id: int):
 
 
 # ===============================
-# ENVIAR PERFIL (SOLO EN MATCH)
+# ENVIAR PERFIL (CONTROL DISCORD)
 # ===============================
 
-async def send_profile(user: discord.User, profile_data: dict, target_user: discord.User):
+async def send_profile(
+    receiver: discord.User,
+    profile_data: dict,
+    target_user: discord.User,
+    show_discord: bool = False
+):
     embed = discord.Embed(
-        title=f"💘 Has hecho match con {target_user.name}",
+        title=f"💘 Has hecho match con {profile_data['name']}",
         color=discord.Color.pink()
     )
 
@@ -102,13 +106,15 @@ async def send_profile(user: discord.User, profile_data: dict, target_user: disc
 
     embed.set_thumbnail(url=target_user.display_avatar.url)
 
-    embed.add_field(
-        name="👤 Usuario de Discord",
-        value=target_user.mention,
-        inline=False
-    )
+    # Solo mostrar Discord si está permitido
+    if show_discord:
+        embed.add_field(
+            name="👤 Usuario de Discord",
+            value=target_user.mention,
+            inline=False
+        )
 
-    await user.send(embed=embed)
+    await receiver.send(embed=embed)
 
 
 # ===============================
@@ -136,8 +142,9 @@ class LikeBackView(discord.ui.View):
         profile1 = await get_full_profile(user1.id)
         profile2 = await get_full_profile(user2.id)
 
-        await send_profile(user1, profile2, user2)
-        await send_profile(user2, profile1, user1)
+        # 🔥 Match aceptado manualmente → SIN mostrar Discord
+        await send_profile(user1, profile2, user2, show_discord=False)
+        await send_profile(user2, profile1, user1, show_discord=False)
 
         await interaction.response.edit_message(
             content="💘 ¡Match realizado!",
@@ -190,8 +197,9 @@ class TinderView(discord.ui.View):
             profile1 = await get_full_profile(user1.id)
             profile2 = await get_full_profile(user2.id)
 
-            await send_profile(user1, profile2, user2)
-            await send_profile(user2, profile1, user1)
+            # 🔥 Match instantáneo → mostrar Discord
+            await send_profile(user1, profile2, user2, show_discord=True)
+            await send_profile(user2, profile1, user1, show_discord=True)
 
         else:
             target_user = await interaction.client.fetch_user(target_id)
