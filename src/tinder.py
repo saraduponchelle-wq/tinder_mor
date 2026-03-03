@@ -145,49 +145,119 @@ async def send_match(user: discord.User, profile_data: dict, other_user: discord
 # BOTONES LIKE BACK
 # ===============================
 
-class LikeBackView(discord.ui.View):
+class TinderView(discord.ui.View):
 
-    def __init__(self, liker_id: int):
-        super().__init__(timeout=604800)  # 7 días
-        self.liker_id = liker_id
+    def __init__(self, profiles, author_id):
+        super().__init__(timeout=900)
+        self.profiles = profiles
+        self.index = 0
+        self.author_id = author_id
 
-    async def on_timeout(self):
-        for item in self.children:
-            item.disabled = True
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        return interaction.user.id == self.author_id
 
+    # ---------------------------
+    # BOTÓN ATRÁS (GRIS)
+    # ---------------------------
     @discord.ui.button(
-        label="Hacer Match",
-        style=discord.ButtonStyle.success,
-        emoji=EMOJI_BOTON_HEART
+        label="Atrás",
+        style=discord.ButtonStyle.secondary
     )
-    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def back_button(self, interaction: discord.Interaction, button: discord.ui.Button):
 
-        await add_match(interaction.user.id, self.liker_id)
+        await interaction.response.defer()
 
-        user1 = interaction.user
-        user2 = await interaction.client.fetch_user(self.liker_id)
+        # Si está en el primero, vuelve al último
+        if self.index == 0:
+            self.index = len(self.profiles) - 1
+        else:
+            self.index -= 1
 
-        profile1 = await get_full_profile(user1.id)
-        profile2 = await get_full_profile(user2.id)
+        await self.update_profile(interaction)
 
-        await send_match(user1, profile2, user2)
-        await send_match(user2, profile1, user1)
-
-        await interaction.response.edit_message(
-            content=f"{EMOJI_HEART} ¡Match realizado!",
-            view=None
-        )
-
+    # ---------------------------
+    # PASS
+    # ---------------------------
     @discord.ui.button(
-        label="Rechazar",
+        label="Pass",
         style=discord.ButtonStyle.danger,
         emoji=EMOJI_BOTON_BROKENHEART
     )
-    async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def pass_button(self, interaction: discord.Interaction, button: discord.ui.Button):
 
-        await interaction.response.edit_message(
-            content=f"{EMOJI_BROKENHEART} Has rechazado el like.",
-            view=None
+        await interaction.response.defer()
+        await self.next_profile(interaction)
+
+    # ---------------------------
+    # LIKE
+    # ---------------------------
+    @discord.ui.button(
+        label="Like",
+        style=discord.ButtonStyle.success,
+        emoji=EMOJI_BOTON_HEART
+    )
+    async def match_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        await interaction.response.defer()
+
+        target_id = self.profiles[self.index]["user_id"]
+        await add_match(self.author_id, target_id)
+
+        if await is_mutual_match(self.author_id, target_id):
+
+            user1 = await interaction.client.fetch_user(self.author_id)
+            user2 = await interaction.client.fetch_user(target_id)
+
+            profile1 = await get_full_profile(user1.id)
+            profile2 = await get_full_profile(user2.id)
+
+            await send_match(user1, profile2, user2)
+            await send_match(user2, profile1, user1)
+
+        else:
+            target_user = await interaction.client.fetch_user(target_id)
+            liker_user = await interaction.client.fetch_user(self.author_id)
+
+            profile_liker = await get_full_profile(self.author_id)
+
+            embed = create_profile_embed(profile_liker, liker_user, show_discord=False)
+            embed.title = f"{EMOJI_GOLDNOTI} A alguien le ha gustado tu perfil"
+
+            try:
+                await target_user.send(
+                    embed=embed,
+                    view=LikeBackView(self.author_id)
+                )
+            except Exception as e:
+                print(f"[ERROR] No se pudo enviar notificación: {e}")
+
+        await self.next_profile(interaction)
+
+    # ---------------------------
+    # SIGUIENTE PERFIL
+    # ---------------------------
+    async def next_profile(self, interaction: discord.Interaction):
+
+        self.index += 1
+
+        if self.index >= len(self.profiles):
+            self.index = 0
+
+        await self.update_profile(interaction)
+
+    # ---------------------------
+    # ACTUALIZAR EMBED
+    # ---------------------------
+    async def update_profile(self, interaction: discord.Interaction):
+
+        profile = self.profiles[self.index]
+        user = await interaction.client.fetch_user(profile["user_id"])
+
+        embed = create_profile_embed(profile, user, show_discord=False)
+
+        await interaction.edit_original_response(
+            embed=embed,
+            view=self
         )
 
 
