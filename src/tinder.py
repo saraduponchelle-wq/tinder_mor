@@ -262,6 +262,52 @@ class TinderView(discord.ui.View):
 
 
 # ===============================
+# BOTONES LIKE BACK
+# ===============================
+
+class LikeBackView(discord.ui.View):
+
+    def __init__(self, liker_id: int):
+        super().__init__(timeout=604800)
+        self.liker_id = liker_id
+
+    @discord.ui.button(
+        label="Hacer Match",
+        style=discord.ButtonStyle.success,
+        emoji=EMOJI_BOTON_HEART
+    )
+    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        await add_match(interaction.user.id, self.liker_id)
+
+        user1 = interaction.user
+        user2 = await interaction.client.fetch_user(self.liker_id)
+
+        profile1 = await get_full_profile(user1.id)
+        profile2 = await get_full_profile(user2.id)
+
+        await send_match(user1, profile2, user2)
+        await send_match(user2, profile1, user1)
+
+        await interaction.response.edit_message(
+            content=f"{EMOJI_HEART} ¡Match realizado!",
+            view=None
+        )
+
+    @discord.ui.button(
+        label="Rechazar",
+        style=discord.ButtonStyle.danger,
+        emoji=EMOJI_BOTON_BROKENHEART
+    )
+    async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        await interaction.response.edit_message(
+            content=f"{EMOJI_BROKENHEART} Has rechazado el like.",
+            view=None
+        )
+
+
+# ===============================
 # TINDER VIEW
 # ===============================
 
@@ -277,11 +323,27 @@ class TinderView(discord.ui.View):
         return interaction.user.id == self.author_id
 
     @discord.ui.button(
+        label="Atrás",
+        style=discord.ButtonStyle.secondary
+    )
+    async def back_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        await interaction.response.defer()
+
+        if self.index == 0:
+            self.index = len(self.profiles) - 1
+        else:
+            self.index -= 1
+
+        await self.update_profile(interaction)
+
+    @discord.ui.button(
         label="Pass",
         style=discord.ButtonStyle.danger,
         emoji=EMOJI_BOTON_BROKENHEART
     )
     async def pass_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+
         await interaction.response.defer()
         await self.next_profile(interaction)
 
@@ -334,6 +396,10 @@ class TinderView(discord.ui.View):
         if self.index >= len(self.profiles):
             self.index = 0
 
+        await self.update_profile(interaction)
+
+    async def update_profile(self, interaction: discord.Interaction):
+
         profile = self.profiles[self.index]
         user = await interaction.client.fetch_user(profile["user_id"])
 
@@ -343,8 +409,6 @@ class TinderView(discord.ui.View):
             embed=embed,
             view=self
         )
-
-
 # ===============================
 # COMANDO
 # ===============================
