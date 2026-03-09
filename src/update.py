@@ -9,6 +9,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 EMOJI_HEART = str(os.getenv("HEART"))
 EMOJI_NO = str(os.getenv("NO"))
 
+
 class ImageModal(discord.ui.Modal, title="Actualizar imágenes"):
 
     profile_image = discord.ui.TextInput(
@@ -49,7 +50,10 @@ class ImageModal(discord.ui.Modal, title="Actualizar imágenes"):
 
 class UpdateView(StartView):
 
-    @discord.ui.button(label="Actualizar Nombre y Descripción", style=discord.ButtonStyle.green)
+    @discord.ui.button(
+        label="Actualizar Nombre y Descripción",
+        style=discord.ButtonStyle.green
+    )
     async def update_modal(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         modal = ProfileModal(
@@ -61,7 +65,10 @@ class UpdateView(StartView):
 
         await interaction.response.send_modal(modal)
 
-    @discord.ui.button(label="Actualizar Imágenes", style=discord.ButtonStyle.blurple)
+    @discord.ui.button(
+        label="Actualizar Imágenes",
+        style=discord.ButtonStyle.blurple
+    )
     async def update_images(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         await interaction.response.send_modal(ImageModal())
@@ -70,7 +77,12 @@ class UpdateView(StartView):
 async def update_callback(interaction: discord.Interaction):
 
     conn = await asyncpg.connect(DATABASE_URL)
-    row = await conn.fetchrow("SELECT * FROM profiles WHERE user_id = $1", interaction.user.id)
+
+    row = await conn.fetchrow(
+        "SELECT * FROM profiles WHERE user_id = $1",
+        interaction.user.id
+    )
+
     await conn.close()
 
     if not row:
@@ -80,7 +92,11 @@ async def update_callback(interaction: discord.Interaction):
         )
         return
 
-    view = UpdateView(default_interests=row["interests"], default_lines=row["lines"])
+    view = UpdateView(
+        default_interests=row["interests"],
+        default_lines=row["lines"]
+    )
+
     view.default_name = row["name"]
     view.default_description = row["description"]
 
@@ -90,7 +106,11 @@ async def update_callback(interaction: discord.Interaction):
         color=discord.Color.pink()
     )
 
-    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+    await interaction.response.send_message(
+        embed=embed,
+        view=view,
+        ephemeral=True
+    )
 
 
 update = app_commands.Command(
