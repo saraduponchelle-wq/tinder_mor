@@ -3,6 +3,7 @@ from discord import app_commands
 import asyncpg
 import os
 from typing import Optional
+from src.blog_viewer import BlogViewer
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -12,6 +13,28 @@ EMOJI_STAR = str(os.getenv("STAR"))
 EMOJI_HEART = str(os.getenv("HEART"))
 EMOJI_BROKENHEART = str(os.getenv("BROKENHEART"))
 EMOJI_FIRE = str(os.getenv("FIRE"))
+
+class ProfileView(discord.ui.View):
+
+    def __init__(self, user, embed):
+        super().__init__(timeout=300)
+        self.user = user
+        self.embed = embed
+    
+    
+    @discord.ui.button(label="Ver Blogs", style=discord.ButtonStyle.secondary)
+    async def blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
+    
+        viewer = BlogViewer(self.user, self.embed)
+    
+        await viewer.load()
+    
+        embed = viewer.create_embed()
+    
+        await interaction.response.edit_message(
+            embed=embed,
+            view=viewer
+    )
 
 
 async def show_callback(interaction: discord.Interaction, user: Optional[discord.Member] = None):
@@ -76,7 +99,12 @@ async def show_callback(interaction: discord.Interaction, user: Optional[discord
     if banner_image:
         embed.set_image(url=banner_image)
 
-    await interaction.response.send_message(embed=embed)
+    view = ProfileView(target, embed)
+
+    await interaction.response.send_message(
+        embed=embed,
+        view=view
+    )
 
 
 show = app_commands.Command(

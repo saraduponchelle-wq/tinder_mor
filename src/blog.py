@@ -3,6 +3,7 @@ import discord
 from discord import app_commands
 import asyncio
 import os
+from src.blog_db import add_blog
 
 BLOG_CHANNEL_ID = int(os.getenv("BLOG_CHANNEL_ID"))
 BLOG_REVIEW_CHANNEL_ID = int(os.getenv("BLOG_REVIEW_CHANNEL_ID"))
@@ -154,10 +155,24 @@ class BlogImageModal(discord.ui.Modal, title="Añadir URL de la imagen"):
         embed.set_footer(text=f"Creado por {self.author}", icon_url=self.author.display_avatar.url)
 
         await channel.send(content=f"{self.author.mention}", embed=embed)
-        await interaction.response.send_message(f"{EMOJI_YES} Tu blog ha sido publicado con imagen!", ephemeral=True)
 
-        # Enviar a revisión
-        await post_blog_for_review(interaction.client, self.author, self.blog_text, image_url)
+        await add_blog(
+            self.author.id,
+            self.blog_text,
+            image_url if image_url else "nothing"
+        )
+
+        await interaction.response.send_message(
+            f"{EMOJI_YES} Tu blog ha sido publicado y guardado en tu perfil!",
+            ephemeral=True
+        )
+
+        await post_blog_for_review(
+            interaction.client,
+            self.author,
+            self.blog_text,
+            image_url
+        )
 
 # ===============================
 # Comando /blog
