@@ -5,33 +5,70 @@ import os
 from src.start import ProfileModal, StartView
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-EMOJI_GOLDNOTI = str(os.getenv("GOLDNOTI"))
-EMOJI_INTEREST = str(os.getenv("INTEREST"))
-EMOJI_LINES = str(os.getenv("LINES"))
-EMOJI_STAR = str(os.getenv("STAR"))
+
 EMOJI_HEART = str(os.getenv("HEART"))
-EMOJI_BROKENHEART = str(os.getenv("BROKENHEART"))
-EMOJI_FIRE = str(os.getenv("FIRE"))
-EMOJI_YES = str(os.getenv("YES"))
 EMOJI_NO = str(os.getenv("NO"))
 
+class ImageModal(discord.ui.Modal, title="Actualizar imágenes"):
+
+    profile_image = discord.ui.TextInput(
+        label="Imagen de perfil (URL)",
+        placeholder="https://cdn.discordapp.com/...",
+        required=False
+    )
+
+    banner_image = discord.ui.TextInput(
+        label="Banner (URL)",
+        placeholder="https://cdn.discordapp.com/...",
+        required=False
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+
+        conn = await asyncpg.connect(DATABASE_URL)
+
+        await conn.execute(
+            """
+            UPDATE profiles
+            SET profile_image = $1,
+                banner_image = $2
+            WHERE user_id = $3
+            """,
+            self.profile_image.value,
+            self.banner_image.value,
+            interaction.user.id
+        )
+
+        await conn.close()
+
+        await interaction.response.send_message(
+            "✅ Imágenes actualizadas correctamente.",
+            ephemeral=True
+        )
+
+
 class UpdateView(StartView):
-    """Versión de StartView para update, con botón para modal"""
 
     @discord.ui.button(label="Actualizar Nombre y Descripción", style=discord.ButtonStyle.green)
     async def update_modal(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Abrir modal con valores actuales
+
         modal = ProfileModal(
             interests=self.interests,
             lines=self.lines,
             default_name=getattr(self, "default_name", ""),
             default_description=getattr(self, "default_description", "")
         )
+
         await interaction.response.send_modal(modal)
+
+    @discord.ui.button(label="Actualizar Imágenes", style=discord.ButtonStyle.blurple)
+    async def update_images(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        await interaction.response.send_modal(ImageModal())
 
 
 async def update_callback(interaction: discord.Interaction):
-    DATABASE_URL = os.getenv("DATABASE_URL")
+
     conn = await asyncpg.connect(DATABASE_URL)
     row = await conn.fetchrow("SELECT * FROM profiles WHERE user_id = $1", interaction.user.id)
     await conn.close()
@@ -43,21 +80,21 @@ async def update_callback(interaction: discord.Interaction):
         )
         return
 
-    # Crear view pre-llenada con intereses y líneas actuales
     view = UpdateView(default_interests=row["interests"], default_lines=row["lines"])
     view.default_name = row["name"]
     view.default_description = row["description"]
 
     embed = discord.Embed(
         title=f"{EMOJI_HEART} Actualiza tu perfil Tinder Discord",
-        description="Modifica tus preferencias y pulsa **Actualizar Nombre y Descripción** si quieres cambiar texto.",
+        description="Puedes modificar tu perfil o tus imágenes.",
         color=discord.Color.pink()
     )
+
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
 update = app_commands.Command(
     name="update",
-    description="Actualiza tu perfil existente (nombre, descripción, intereses, líneas)",
+    description="Actualiza tu perfil existente",
     callback=update_callback
 )

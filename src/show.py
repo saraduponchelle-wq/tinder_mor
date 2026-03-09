@@ -27,16 +27,28 @@ async def show_callback(interaction: discord.Interaction, user: Optional[discord
         )
         return
 
-    embed = discord.Embed(title = f"**{EMOJI_HEART} Perfil de Tinder**", color=discord.Color.pink())
-    embed.add_field(name=f"{EMOJI_FIRE}Nombre", value=row["name"], inline=False)
-    embed.add_field(name=f"{EMOJI_INTEREST}Intereses", value=", ".join(row["interests"]), inline=False)
-    embed.add_field(name=f"{EMOJI_LINES}Lineas", value=row["lines"], inline=False)
-    embed.add_field(name=f"{EMOJI_STAR}Bio", value=row["description"], inline=False)
-    embed.set_thumbnail(url=target.display_avatar.url)
+    embed = discord.Embed(
+        title=f"{EMOJI_HEART} Perfil de Tinder",
+        color=discord.Color.pink()
+    )
+
+    embed.add_field(name=f"{EMOJI_FIRE} Nombre", value=row["name"], inline=False)
+    embed.add_field(name=f"{EMOJI_INTEREST} Intereses", value=", ".join(row["interests"]), inline=False)
+    embed.add_field(name=f"{EMOJI_LINES} Líneas", value=row["lines"], inline=False)
+    embed.add_field(name=f"{EMOJI_STAR} Bio", value=row["description"], inline=False)
+
+    # Imagen de perfil personalizada
+    if row["profile_image"]:
+        embed.set_thumbnail(url=row["profile_image"])
+    else:
+        embed.set_thumbnail(url=target.display_avatar.url)
+
+    # Banner
+    if row["banner_image"]:
+        embed.set_image(url=row["banner_image"])
 
     await interaction.response.send_message(embed=embed)
 
-# Registramos el comando correctamente con type hints
 show = app_commands.Command(
     name="show",
     description="Muestra el perfil de un usuario",
