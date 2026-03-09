@@ -14,49 +14,40 @@ EMOJI_HEART = str(os.getenv("HEART"))
 EMOJI_BROKENHEART = str(os.getenv("BROKENHEART"))
 EMOJI_FIRE = str(os.getenv("FIRE"))
 
+
 class ProfileView(discord.ui.View):
+    def __init__(self, user, embed):
+        super().__init__(timeout=300)
+        self.user = user
+        self.embed = embed
 
-def __init__(self, user, embed):
-    super().__init__(timeout=300)
-    self.user = user
-    self.embed = embed
+    async def interaction_check(self, interaction: discord.Interaction):
+        return interaction.user.id == self.user.id
 
-async def interaction_check(self, interaction: discord.Interaction):
-    return interaction.user.id == self.user.id
+    @discord.ui.button(label="Ver Blogs", style=discord.ButtonStyle.secondary)
+    async def blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
+        viewer = BlogViewer(self.user, self.embed)
+        await viewer.load()
 
-@discord.ui.button(label="Ver Blogs", style=discord.ButtonStyle.secondary)
-async def blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not viewer.blogs:
+            await interaction.response.send_message(
+                "Este usuario no tiene blogs.",
+                ephemeral=True
+            )
+            return
 
-    viewer = BlogViewer(self.user, self.embed)
-
-    await viewer.load()
-
-    if not viewer.blogs:
-        await interaction.response.send_message(
-            "Este usuario no tiene blogs.",
-            ephemeral=True
+        embed = viewer.create_embed()
+        await interaction.response.edit_message(
+            embed=embed,
+            view=viewer
         )
-        return
-
-    embed = viewer.create_embed()
-
-    await interaction.response.edit_message(
-        embed=embed,
-        view=viewer
-    )
 
 
 async def show_callback(interaction: discord.Interaction, user: Optional[discord.Member] = None):
-
     target = user or interaction.user
 
     conn = await asyncpg.connect(DATABASE_URL)
-
-    row = await conn.fetchrow(
-        "SELECT * FROM profiles WHERE user_id = $1",
-        target.id
-    )
-
+    row = await conn.fetchrow("SELECT * FROM profiles WHERE user_id = $1", target.id)
     await conn.close()
 
     if not row:
@@ -71,49 +62,24 @@ async def show_callback(interaction: discord.Interaction, user: Optional[discord
         color=discord.Color.pink()
     )
 
-    embed.add_field(
-        name=f"{EMOJI_FIRE} Nombre",
-        value=row["name"],
-        inline=False
-    )
-
-    embed.add_field(
-        name=f"{EMOJI_INTEREST} Intereses",
-        value=", ".join(row["interests"]),
-        inline=False
-    )
-
-    embed.add_field(
-        name=f"{EMOJI_LINES} Líneas",
-        value=row["lines"],
-        inline=False
-    )
-
-    embed.add_field(
-        name=f"{EMOJI_STAR} Bio",
-        value=row["description"],
-        inline=False
-    )
+    embed.add_field(name=f"{EMOJI_FIRE} Nombre", value=row["name"], inline=False)
+    embed.add_field(name=f"{EMOJI_INTEREST} Intereses", value=", ".join(row["interests"]), inline=False)
+    embed.add_field(name=f"{EMOJI_LINES} Líneas", value=row["lines"], inline=False)
+    embed.add_field(name=f"{EMOJI_STAR} Bio", value=row["description"], inline=False)
 
     profile_image = row.get("profile_image")
     banner_image = row.get("banner_image")
 
-    # Avatar
     if profile_image:
         embed.set_thumbnail(url=profile_image)
     else:
         embed.set_thumbnail(url=target.display_avatar.url)
 
-    # Banner
     if banner_image:
         embed.set_image(url=banner_image)
 
     view = ProfileView(target, embed)
-
-    await interaction.response.send_message(
-        embed=embed,
-        view=view
-    )
+    await interaction.response.send_message(embed=embed, view=view)
 
 
 show = app_commands.Command(
