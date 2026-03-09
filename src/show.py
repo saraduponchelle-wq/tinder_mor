@@ -39,13 +39,13 @@ async def show_callback(interaction: discord.Interaction, user: Optional[discord
 
     # AVATAR PERSONALIZADO
     if row["avatar_url"]:
-        embed.set_thumbnail(url=row["avatar_url"])
+        embed.set_thumbnail(url=row["profile_image"])
     else:
         embed.set_thumbnail(url=target.display_avatar.url)
 
     # BANNER PERSONALIZADO
     if row["banner_url"]:
-        embed.set_image(url=row["banner_url"])
+        embed.set_image(url=row["banner_image"])
 
     await interaction.response.send_message(embed=embed)
 
