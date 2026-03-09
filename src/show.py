@@ -16,24 +16,33 @@ EMOJI_FIRE = str(os.getenv("FIRE"))
 
 class ProfileView(discord.ui.View):
 
-    def __init__(self, user, embed):
-        super().__init__(timeout=300)
-        self.user = user
-        self.embed = embed
-    
-    
-    @discord.ui.button(label="Ver Blogs", style=discord.ButtonStyle.secondary)
-    async def blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
-    
-        viewer = BlogViewer(self.user, self.embed)
-    
-        await viewer.load()
-    
-        embed = viewer.create_embed()
-    
-        await interaction.response.edit_message(
-            embed=embed,
-            view=viewer
+def __init__(self, user, embed):
+    super().__init__(timeout=300)
+    self.user = user
+    self.embed = embed
+
+async def interaction_check(self, interaction: discord.Interaction):
+    return interaction.user.id == self.user.id
+
+@discord.ui.button(label="Ver Blogs", style=discord.ButtonStyle.secondary)
+async def blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+    viewer = BlogViewer(self.user, self.embed)
+
+    await viewer.load()
+
+    if not viewer.blogs:
+        await interaction.response.send_message(
+            "Este usuario no tiene blogs.",
+            ephemeral=True
+        )
+        return
+
+    embed = viewer.create_embed()
+
+    await interaction.response.edit_message(
+        embed=embed,
+        view=viewer
     )
 
 
