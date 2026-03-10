@@ -19,6 +19,7 @@ class OnlineProfiles:
     @tasks.loop(minutes=5)
     async def update_online_profiles(self):
 
+        print("🔄 Actualizando perfiles online...")
         channel = self.bot.get_channel(PROFILE_CHANNEL_ID)
 
         if not channel:

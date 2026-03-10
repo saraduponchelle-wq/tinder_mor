@@ -37,10 +37,6 @@ class MyBot(discord.Client):
 bot = MyBot()
 
 @bot.event
-async def on_ready():
-    print(f"🤖 Conectado como {bot.user}")
-
-@bot.event
 async def on_message(message):
 
     if message.author.bot:
@@ -110,14 +106,17 @@ from events.online_profiles import OnlineProfiles
 
 @bot.event
 async def on_ready():
-    print(f"Conectado como {bot.user}")
-    OnlineProfiles(bot)
+    print(f"🤖 Conectado como {bot.user}")
+
+    if not hasattr(bot, "online_profiles"):
+        from events.online_profiles import OnlineProfiles
+        bot.online_profiles = OnlineProfiles(bot)
+
     await bot.change_presence(
         activity=discord.Game("❤️ Buscando matches")
     )
 
 import os
-
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 if not TOKEN:
