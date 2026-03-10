@@ -106,10 +106,12 @@ async def help_command(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
+from events.online_profiles import OnlineProfiles
+
 @bot.event
 async def on_ready():
     print(f"Conectado como {bot.user}")
-
+    OnlineProfiles(bot)
     await bot.change_presence(
         activity=discord.Game("❤️ Buscando matches")
     )
