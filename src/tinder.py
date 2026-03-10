@@ -155,9 +155,11 @@ async def send_match(user: discord.User, profile_data: dict, other_user: discord
 
 class LikeBackView(discord.ui.View):
 
-    def __init__(self, liker_id: int):
+    def __init__(self, liker_id: int, profile_data: dict, discord_user: discord.User):
         super().__init__(timeout=604800)
         self.liker_id = liker_id
+        self.profile_data = profile_data
+        self.discord_user = discord_user
 
     @discord.ui.button(
         label="Hacer Match",
@@ -192,6 +194,25 @@ class LikeBackView(discord.ui.View):
         await interaction.response.edit_message(
             content=f"{EMOJI_BROKENHEART} Has rechazado el like.",
             view=None
+
+    @discord.ui.button(label="Blogs", style=discord.ButtonStyle.primary)
+    async def blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
+    
+        embed = create_profile_embed(self.profile_data, self.discord_user)
+    
+        viewer = BlogViewer(self.discord_user, embed, self)
+        await viewer.load()
+    
+        if not viewer.blogs:
+            await interaction.response.send_message(
+                "Este usuario no tiene blogs.",
+                ephemeral=True
+            )
+            return
+    
+        await interaction.response.edit_message(
+            embed=viewer.create_embed(),
+            view=viewer
         )
 
 class ProfileDMView(discord.ui.View):
@@ -286,7 +307,7 @@ class TinderView(discord.ui.View):
             try:
                 await target_user.send(
                     embed=embed,
-                    view=LikeBackView(self.author_id)
+                    view=LikeBackView(self.author_id, profile_liker, liker_user)
                 )
             except Exception as e:
                 print(f"[ERROR] No se pudo enviar notificación: {e}")
