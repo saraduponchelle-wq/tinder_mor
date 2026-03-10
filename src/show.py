@@ -16,17 +16,19 @@ EMOJI_FIRE = str(os.getenv("FIRE"))
 
 
 class ProfileView(discord.ui.View):
-    def __init__(self, user, embed):
+    def __init__(self, viewer_id: int, profile_embed: discord.Embed):
         super().__init__(timeout=300)
-        self.user = user
-        self.embed = embed
+        self.viewer_id = viewer_id  # quien ve el perfil
+        self.profile_embed = profile_embed
 
     async def interaction_check(self, interaction: discord.Interaction):
-        return interaction.user.id == self.user.id
+        # solo el viewer puede usar los botones
+        return interaction.user.id == self.viewer_id
 
     @discord.ui.button(label="Ver Blogs", style=discord.ButtonStyle.secondary)
     async def blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
-        viewer = BlogViewer(self.user, self.embed)
+        from src.blog_viewer import BlogViewer  # importa aquí para evitar dependencias circulares
+        viewer = BlogViewer(user=interaction.user, profile_embed=self.profile_embed)
         await viewer.load()
 
         if not viewer.blogs:
@@ -36,9 +38,8 @@ class ProfileView(discord.ui.View):
             )
             return
 
-        embed = viewer.create_embed()
         await interaction.response.edit_message(
-            embed=embed,
+            embed=viewer.create_embed(),
             view=viewer
         )
 
@@ -78,7 +79,8 @@ async def show_callback(interaction: discord.Interaction, user: Optional[discord
     if banner_image:
         embed.set_image(url=banner_image)
 
-    view = ProfileView(target, embed)
+    # ← Aquí se reemplaza la creación de la vista
+    view = ProfileView(viewer_id=interaction.user.id, profile_embed=embed)
     await interaction.response.send_message(embed=embed, view=view)
 
 
