@@ -194,6 +194,7 @@ class LikeBackView(discord.ui.View):
         await interaction.response.edit_message(
             content=f"{EMOJI_BROKENHEART} Has rechazado el like.",
             view=None
+        )
 
     @discord.ui.button(label="Blogs", style=discord.ButtonStyle.primary)
     async def blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
