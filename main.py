@@ -67,8 +67,8 @@ async def help_command(interaction: discord.Interaction):
     embed.add_field(
         name="👤 Perfiles",
         value=(
-            "`/create` → Crear tu perfil\n"
-            "`/edit` → Editar tu perfil\n"
+            "`/start` → Crear tu perfil\n"
+            "`/update` → Editar tu perfil\n"
             "`/show` → Ver tu perfil o el de otro usuario"
         ),
         inline=False
@@ -88,6 +88,15 @@ async def help_command(interaction: discord.Interaction):
         value=(
             "Puedes escribir pequeños **blogs personales**.\n"
             "Otros usuarios pueden verlos desde tu perfil."
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="📰 News",
+        value=(
+            "Quieres recibir al privado cuando alguien suba un blog.\n"
+            "Activa esta opcion y recibiras las busquedasd de rol."
         ),
         inline=False
     )
