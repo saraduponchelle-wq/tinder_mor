@@ -10,8 +10,13 @@ BLOG_REVIEW_CHANNEL_ID = int(os.getenv("BLOG_REVIEW_CHANNEL_ID"))
 
 class MyBot(discord.Client):
     def __init__(self):
+
         intents = discord.Intents.default()
+        intents.members = True
+        intents.presences = True
+
         super().__init__(intents=intents)
+
         self.tree = app_commands.CommandTree(self)
 
     async def setup_hook(self):
