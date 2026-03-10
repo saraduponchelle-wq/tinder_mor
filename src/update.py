@@ -12,58 +12,60 @@ EMOJI_NO = str(os.getenv("NO"))
 
 class ImageModal(discord.ui.Modal, title="Actualizar imágenes"):
 
-profile_image = discord.ui.TextInput(
-    label="Imagen de perfil (URL)",
-    placeholder="https://cdn.discordapp.com/...",
-    required=False
-)
-
-banner_image = discord.ui.TextInput(
-    label="Banner (URL)",
-    placeholder="https://cdn.discordapp.com/...",
-    required=False
-)
-
-async def on_submit(self, interaction: discord.Interaction):
-
-    conn = await asyncpg.connect(DATABASE_URL)
-
-    row = await conn.fetchrow(
-        "SELECT profile_image, banner_image FROM profiles WHERE user_id=$1",
-        interaction.user.id
+    profile_image = discord.ui.TextInput(
+        label="Imagen de perfil (URL)",
+        placeholder="https://cdn.discordapp.com/...",
+        required=False
     )
 
-    current_profile = row["profile_image"]
-    current_banner = row["banner_image"]
-
-    new_profile = self.profile_image.value.strip()
-    new_banner = self.banner_image.value.strip()
-
-    # Si el campo está vacío, mantener el anterior
-    if not new_profile:
-        new_profile = current_profile
-
-    if not new_banner:
-        new_banner = current_banner
-
-    await conn.execute(
-        """
-        UPDATE profiles
-        SET profile_image = $1,
-            banner_image = $2
-        WHERE user_id = $3
-        """,
-        new_profile,
-        new_banner,
-        interaction.user.id
+    banner_image = discord.ui.TextInput(
+        label="Banner (URL)",
+        placeholder="https://cdn.discordapp.com/...",
+        required=False
     )
 
-    await conn.close()
+    async def on_submit(self, interaction: discord.Interaction):
 
-    await interaction.response.send_message(
-        "✅ Imágenes actualizadas correctamente.",
-        ephemeral=True
-    )
+        conn = await asyncpg.connect(DATABASE_URL)
+
+        row = await conn.fetchrow(
+            "SELECT profile_image, banner_image FROM profiles WHERE user_id=$1",
+            interaction.user.id
+        )
+
+        current_profile = row["profile_image"]
+        current_banner = row["banner_image"]
+
+        new_profile = self.profile_image.value.strip()
+        new_banner = self.banner_image.value.strip()
+
+        # Si el campo está vacío, mantener el anterior
+        if not new_profile:
+            new_profile = current_profile
+
+        if not new_banner:
+            new_banner = current_banner
+
+        await conn.execute(
+            """
+            UPDATE profiles
+            SET profile_image = $1,
+                banner_image = $2
+            WHERE user_id = $3
+            """,
+            new_profile,
+            new_banner,
+            interaction.user.id
+        )
+
+        await conn.close()
+
+        await interaction.response.send_message(
+            "✅ Imágenes actualizadas correctamente.",
+            ephemeral=True
+        )
+
+
 class UpdateView(StartView):
 
     @discord.ui.button(
