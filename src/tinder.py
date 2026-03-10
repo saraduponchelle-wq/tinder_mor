@@ -95,7 +95,6 @@ async def get_full_profile(user_id: int):
 # ===============================
 
 def create_profile_embed(profile_data: dict, discord_user: discord.User, show_discord=False):
-
     embed = discord.Embed(
         title=f"{EMOJI_HEART} Perfil de {profile_data['name']}",
         color=discord.Color.pink()
@@ -103,23 +102,30 @@ def create_profile_embed(profile_data: dict, discord_user: discord.User, show_di
 
     embed.add_field(
         name=f"{EMOJI_INTEREST} Intereses",
-        value=", ".join(profile_data["interests"] or ["Ninguno"]),
+        value=", ".join(profile_data.get("interests") or ["Ninguno"]),
         inline=False
     )
-
     embed.add_field(
         name=f"{EMOJI_LINES} Líneas",
-        value=profile_data["lines"] or "Sin líneas",
+        value=profile_data.get("lines") or "Sin líneas",
         inline=False
     )
-
     embed.add_field(
         name=f"{EMOJI_STAR} Bio",
-        value=profile_data["description"] or "Sin descripción",
+        value=profile_data.get("description") or "Sin descripción",
         inline=False
     )
 
-    embed.set_thumbnail(url=discord_user.display_avatar.url)
+    profile_image = profile_data.get("profile_image")
+    banner_image = profile_data.get("banner_image")
+
+    if profile_image:
+        embed.set_thumbnail(url=profile_image)
+    else:
+        embed.set_thumbnail(url=discord_user.display_avatar.url)
+
+    if banner_image:
+        embed.set_image(url=banner_image)
 
     if show_discord:
         embed.add_field(
@@ -129,8 +135,6 @@ def create_profile_embed(profile_data: dict, discord_user: discord.User, show_di
         )
 
     return embed
-
-
 # ===============================
 # ENVIAR MATCH
 # ===============================

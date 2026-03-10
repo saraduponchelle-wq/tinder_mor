@@ -7,13 +7,13 @@ class BlogViewer(discord.ui.View):
     Funciona tanto para el comando show como para Tinder.
     """
 
-    def __init__(self, user: discord.User, profile_embed: discord.Embed, tinder_view: discord.ui.View = None):
+    def __init__(self, user: discord.User, profile_embed: discord.Embed, original_view: discord.ui.View = None):
         super().__init__(timeout=300)  # Timeout de 5 minutos
         self.user = user
         self.index = 0
         self.blogs = []
         self.profile_embed = profile_embed
-        self.tinder_view = tinder_view  # Si se pasa, se restaurará al volver
+        self.original_view = original_view
 
     async def load(self):
         """Carga los blogs desde la base de datos."""
@@ -79,5 +79,5 @@ class BlogViewer(discord.ui.View):
         """Regresar al perfil. Si es Tinder, restaura la TinderView; si no, None."""
         await interaction.response.edit_message(
             embed=self.profile_embed,
-            view=self.tinder_view  # None si es show, TinderView si viene de tinder
+            view=self.original_view# None si es show, TinderView si viene de tinder
         )
