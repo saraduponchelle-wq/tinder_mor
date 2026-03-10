@@ -268,7 +268,7 @@ class TinderView(discord.ui.View):
 
         embed = create_profile_embed(profile, user)
 
-        viewer = BlogViewer(user, embed)
+        viewer = BlogViewer(user, embed, self)  # self = la TinderView actual
         await viewer.load()
 
         if not viewer.blogs:
