@@ -16,9 +16,10 @@ EMOJI_FIRE = str(os.getenv("FIRE"))
 
 
 class ProfileView(discord.ui.View):
-    def __init__(self, viewer_id: int, profile_embed: discord.Embed):
+    def __init__(self, viewer_id: int, profile_user: discord.User, profile_embed: discord.Embed):
         super().__init__(timeout=300)
-        self.viewer_id = viewer_id  # quien ve el perfil
+        self.viewer_id = viewer_id
+        self.profile_user = profile_user
         self.profile_embed = profile_embed
 
     async def interaction_check(self, interaction: discord.Interaction):
@@ -28,7 +29,7 @@ class ProfileView(discord.ui.View):
     @discord.ui.button(label="Ver Blogs", style=discord.ButtonStyle.secondary)
     async def blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
         from src.blog_viewer import BlogViewer  # importa aquí para evitar dependencias circulares
-        viewer = BlogViewer(user=interaction.user, profile_embed=self.profile_embed)
+        viewer = BlogViewer(user=self.profile_user, profile_embed=self.profile_embed)
         await viewer.load()
 
         if not viewer.blogs:
@@ -80,7 +81,11 @@ async def show_callback(interaction: discord.Interaction, user: Optional[discord
         embed.set_image(url=banner_image)
 
     # ← Aquí se reemplaza la creación de la vista
-    view = ProfileView(viewer_id=interaction.user.id, profile_embed=embed)
+    view = ProfileView(
+        viewer_id=interaction.user.id,
+        profile_user=target,
+        profile_embed=embed
+    )
     await interaction.response.send_message(embed=embed, view=view)
 
 
