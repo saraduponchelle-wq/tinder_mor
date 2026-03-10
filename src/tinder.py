@@ -35,7 +35,8 @@ async def get_profiles(exclude_user_id: int):
     conn = await get_connection()
 
     rows = await conn.fetch("""
-        SELECT user_id, name, interests, lines, description, matches
+        SELECT user_id, name, interests, lines, description, matches,
+               profile_image, banner_image
         FROM profiles
         WHERE user_id != $1
     """, exclude_user_id)
@@ -142,7 +143,10 @@ def create_profile_embed(profile_data: dict, discord_user: discord.User, show_di
 async def send_match(user: discord.User, profile_data: dict, other_user: discord.User):
     embed = create_profile_embed(profile_data, other_user, show_discord=True)
     embed.title = f"{EMOJI_HEART} ¡Has hecho match con {profile_data['name']}!"
-    await user.send(embed=embed)
+    await user.send(
+        embed=embed,
+        view=ProfileDMView(profile_data, other_user)
+    )
 
 
 # ===============================
@@ -188,6 +192,33 @@ class LikeBackView(discord.ui.View):
         await interaction.response.edit_message(
             content=f"{EMOJI_BROKENHEART} Has rechazado el like.",
             view=None
+        )
+
+class ProfileDMView(discord.ui.View):
+
+    def __init__(self, profile_data, discord_user):
+        super().__init__(timeout=604800)
+        self.profile_data = profile_data
+        self.discord_user = discord_user
+
+    @discord.ui.button(label="Blogs", style=discord.ButtonStyle.primary)
+    async def view_blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        embed = create_profile_embed(self.profile_data, self.discord_user, show_discord=True)
+
+        viewer = BlogViewer(self.discord_user, embed, self)
+        await viewer.load()
+
+        if not viewer.blogs:
+            await interaction.response.send_message(
+                "Este usuario no tiene blogs.",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.edit_message(
+            embed=viewer.create_embed(),
+            view=viewer
         )
 
 
