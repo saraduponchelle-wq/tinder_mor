@@ -1,4 +1,5 @@
 import discord
+import asyncio
 import asyncpg
 import os
 from discord.ext import tasks
@@ -55,7 +56,16 @@ class OnlineProfiles:
 
             embed = create_profile_embed(profile, member)
 
-            await channel.send(embed=embed)
+            try:
+                await channel.send(embed=embed)
+                await asyncio.sleep(1)
+            except discord.DiscordServerError:
+                print("⚠️ Error 503 de Discord, reintentando...")
+                await asyncio.sleep(3)
+                try:
+                    await channel.send(embed=embed)
+                except Exception as e:
+                    print(f"❌ No se pudo enviar perfil: {e}")
 
         await conn.close()
 
