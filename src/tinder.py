@@ -161,6 +161,45 @@ def create_profile_embed(profile_data: dict, discord_user: discord.User, show_di
         )
 
     return embed
+
+
+class MatchView(discord.ui.View):
+
+def __init__(self, profile_data, discord_user):
+    super().__init__(timeout=604800)
+    self.profile_data = profile_data
+    self.discord_user = discord_user
+
+@discord.ui.button(label="Blogs", style=discord.ButtonStyle.primary)
+async def blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+    embed = create_profile_embed(self.profile_data, self.discord_user, show_discord=True)
+
+    viewer = BlogViewer(self.discord_user, embed, self)
+    await viewer.load()
+
+    if not viewer.blogs:
+        await interaction.response.send_message(
+            "Este usuario no tiene blogs.",
+            ephemeral=True
+        )
+        return
+
+    await interaction.response.edit_message(
+        embed=viewer.create_embed(),
+        view=viewer
+    )
+
+@discord.ui.button(label="Bloquear", style=discord.ButtonStyle.danger)
+async def block(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+    await block_user(interaction.user.id, self.discord_user.id)
+
+    await interaction.response.edit_message(
+        content="🚫 Usuario bloqueado.",
+        view=None
+    )
+
 # ===============================
 # ENVIAR MATCH
 # ===============================
@@ -170,7 +209,7 @@ async def send_match(user: discord.User, profile_data: dict, other_user: discord
     embed.title = f"{EMOJI_HEART} ¡Has hecho match con {profile_data['name']}!"
     await user.send(
         embed=embed,
-        view=ProfileDMView(profile_data, other_user)
+        view=MatchView(profile_data, other_user)
     )
 
 
