@@ -39,10 +39,35 @@ async def get_profiles(exclude_user_id: int):
                profile_image, banner_image
         FROM profiles
         WHERE user_id != $1
+        AND NOT ($1 = ANY(block))
+        AND NOT (user_id = ANY(
+            SELECT UNNEST(block) FROM profiles WHERE user_id = $1
+        ))
     """, exclude_user_id)
 
     await conn.close()
     return rows
+
+async def block_user(user_id: int, target_id: int):
+    conn = await get_connection()
+
+    row = await conn.fetchrow(
+        "SELECT block FROM profiles WHERE user_id=$1",
+        user_id
+    )
+
+    blocks = row["block"] or []
+
+    if target_id not in blocks:
+        blocks.append(target_id)
+
+        await conn.execute(
+            "UPDATE profiles SET block=$1 WHERE user_id=$2",
+            blocks,
+            user_id
+        )
+
+    await conn.close()
 
 
 async def add_match(user_id: int, target_id: int):
@@ -147,6 +172,36 @@ async def send_match(user: discord.User, profile_data: dict, other_user: discord
         embed=embed,
         view=ProfileDMView(profile_data, other_user)
     )
+
+
+class BlockView(discord.ui.View):
+
+def __init__(self, target_id: int):
+    super().__init__(timeout=604800)
+    self.target_id = target_id
+
+@discord.ui.button(label="Bloquear", style=discord.ButtonStyle.danger)
+async def block(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+    await block_user(interaction.user.id, self.target_id)
+
+    await interaction.response.edit_message(
+        content="🚫 Usuario bloqueado. No volverás a ver su perfil.",
+        view=None
+    )
+
+async def send_coucou(user: discord.User, other_user: discord.User):
+
+embed = discord.Embed(
+    title="👋 Coucou",
+    description=f"{other_user.mention} te hace un pequeño coucou.",
+    color=discord.Color.pink()
+)
+
+await user.send(
+    embed=embed,
+    view=BlockView(other_user.id)
+)
 
 
 # ===============================
@@ -289,12 +344,17 @@ class TinderView(discord.ui.View):
 
             user1 = await interaction.client.fetch_user(self.author_id)
             user2 = await interaction.client.fetch_user(target_id)
-
+    
             profile1 = await get_full_profile(user1.id)
             profile2 = await get_full_profile(user2.id)
-
-            await send_match(user1, profile2, user2)
-            await send_match(user2, profile1, user1)
+    
+            # comprobar si ya eran match
+            if target_id in profile1["matches"] and self.author_id in profile2["matches"]:
+                await send_coucou(user2, user1)
+            else:
+                await send_match(user1, profile2, user2)
+                await send_match(user2, profile1, user1)
+)
 
         else:
             target_user = await interaction.client.fetch_user(target_id)
