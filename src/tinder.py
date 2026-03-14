@@ -410,8 +410,6 @@ class TinderView(discord.ui.View):
     @discord.ui.button(label="Blogs", style=discord.ButtonStyle.primary)
     async def view_blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
 
-        await interaction.response.defer()
-
         profile = self.profiles[self.index]
         user = await interaction.client.fetch_user(profile["user_id"])
 
@@ -420,17 +418,22 @@ class TinderView(discord.ui.View):
         viewer = BlogViewer(user, embed, self)
         await viewer.load()
 
+        # SI NO TIENE BLOGS
         if not viewer.blogs:
-            await interaction.followup.send(
-                "Este usuario no tiene blogs.",
+
+            await interaction.response.send_message(
+                "📭 Este usuario no tiene blogs.",
                 ephemeral=True
             )
+
             return
 
-        await interaction.edit_original_response(
+        # SI TIENE BLOGS
+        await interaction.response.edit_message(
             embed=viewer.create_embed(),
             view=viewer
         )
+
 
 
 
