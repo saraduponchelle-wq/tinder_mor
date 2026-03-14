@@ -395,6 +395,44 @@ class TinderView(discord.ui.View):
 
         await self.next_profile(interaction)
 
+    @discord.ui.button(label="Atrás", style=discord.ButtonStyle.secondary)
+    async def back_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        await interaction.response.defer()
+
+        if self.index == 0:
+            self.index = len(self.profiles) - 1
+        else:
+            self.index -= 1
+
+        await self.update_profile(interaction)
+
+    @discord.ui.button(label="Blogs", style=discord.ButtonStyle.primary)
+    async def view_blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        await interaction.response.defer()
+
+        profile = self.profiles[self.index]
+        user = await interaction.client.fetch_user(profile["user_id"])
+
+        embed = create_profile_embed(profile, user)
+
+        viewer = BlogViewer(user, embed, self)
+        await viewer.load()
+
+        if not viewer.blogs:
+            await interaction.followup.send(
+                "Este usuario no tiene blogs.",
+                ephemeral=True
+            )
+            return
+
+        await interaction.edit_original_response(
+            embed=viewer.create_embed(),
+            view=viewer
+        )
+
+
 
 # ==========================================================
 # COMANDO
