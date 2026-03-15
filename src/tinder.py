@@ -15,6 +15,9 @@ EMOJI_LINES = str(os.getenv("LINES"))
 EMOJI_STAR = str(os.getenv("STAR"))
 EMOJI_HEART = str(os.getenv("HEART"))
 EMOJI_BROKENHEART = str(os.getenv("BROKENHEART"))
+LIKES_STAT = str(os.getenv("LIKES_STAT"))
+MATCHES_STAT = str(os.getenv("MATCHES_STAT"))
+POPULARITY_STAT = str(os.getenv("POPULARITY_STAT"))
 
 EMOJI_BOTON_HEART = discord.PartialEmoji.from_str("<a:heart:1477738562433581338>")
 EMOJI_BOTON_BROKENHEART = discord.PartialEmoji.from_str("<:brokenheart:1477739060423299202>")
@@ -222,9 +225,9 @@ def create_profile_embed(profile_data: dict, discord_user: discord.User, show_di
 
     total_popularity = likes + matches + popularity
 
-    embed.add_field(name="💖 Popularity", value=total_popularity, inline=True)
-    embed.add_field(name="👍 Likes", value=likes, inline=True)
-    embed.add_field(name="🤝 Matches", value=matches, inline=True)
+    embed.add_field(name=f"{POPULARITY_STAT} Popularity", value=total_popularity, inline=True)
+    embed.add_field(name=f"{LIKES_STAT} Likes", value=likes, inline=True)
+    embed.add_field(name=f"{MATCHES_STAT} Matches", value=matches, inline=True)
     return embed
 
 
