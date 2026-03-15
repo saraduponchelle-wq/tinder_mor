@@ -20,6 +20,51 @@ EMOJI_BOTON_HEART = discord.PartialEmoji.from_str("<a:heart:1477738562433581338>
 EMOJI_BOTON_BROKENHEART = discord.PartialEmoji.from_str("<:brokenheart:1477739060423299202>")
 
 
+# ===============================
+# STATS HELPERS
+# ===============================
+
+async def add_like(target_id: int):
+    """Primer like recibido"""
+    conn = await get_connection()
+
+    await conn.execute(
+        "UPDATE profiles SET likes = COALESCE(likes,0) + 1 WHERE user_id=$1",
+        target_id
+    )
+
+    await conn.close()
+
+
+async def add_match_stat(user1: int, user2: int):
+    """Añade match a ambos"""
+    conn = await get_connection()
+
+    await conn.execute(
+        "UPDATE profiles SET matches_nb = COALESCE(matches_nb,0) + 1 WHERE user_id=$1",
+        user1
+    )
+
+    await conn.execute(
+        "UPDATE profiles SET matches = COALESCE(matches_nb,0) + 1 WHERE user_id=$1",
+        user2
+    )
+
+    await conn.close()
+
+
+async def add_popularity(target_id: int):
+    """Extras: likes repetidos o coucou"""
+    conn = await get_connection()
+
+    await conn.execute(
+        "UPDATE profiles SET popularity = COALESCE(popularity,0) + 1 WHERE user_id=$1",
+        target_id
+    )
+
+    await conn.close()
+
+
 # ==========================================================
 # DATABASE HELPERS
 # ==========================================================
@@ -167,6 +212,19 @@ def create_profile_embed(profile_data: dict, discord_user: discord.User, show_di
             value=discord_user.mention,
             inline=False
         )
+    likes = profile_data.get("likes", 0)
+    matches = profile_data.get("matches", 0)
+    popularity = profile_data.get("popularity", 0)
+
+    total_popularity = likes + matches + popularity
+
+    embed.set_footer(
+        text=(
+            "**Popularity**        **Likes**        **Matches**\n"
+            f"{total_popularity}              {likes}              {matches}"
+        )
+    )
+
 
     return embed
 
@@ -252,6 +310,8 @@ class LikeBackView(discord.ui.View):
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         await add_match(interaction.user.id, self.liker_id)
+        await add_like(self.liker_id)
+        await add_match_stat(interaction.user.id, self.liker_id)
 
         user1 = interaction.user
         user2 = await interaction.client.fetch_user(self.liker_id)
@@ -365,6 +425,7 @@ class TinderView(discord.ui.View):
         already_match = await is_mutual_match(self.author_id, target_id)
 
         await add_match(self.author_id, target_id)
+        await add_like(target_id)
 
         user1 = await interaction.client.fetch_user(self.author_id)
         user2 = await interaction.client.fetch_user(target_id)
@@ -374,11 +435,14 @@ class TinderView(discord.ui.View):
 
         if already_match:
             await send_coucou(user2, user1)
+            await add_popularity(target_id)
+
 
         elif await is_mutual_match(self.author_id, target_id):
 
             await send_match(user1, profile2, user2)
             await send_match(user2, profile1, user1)
+            await add_match_stat(user1.id, user2.id)
 
         else:
 
