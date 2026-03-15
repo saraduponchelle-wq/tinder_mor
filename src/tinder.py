@@ -82,13 +82,15 @@ async def get_profiles(exclude_user_id: int):
 
     rows = await conn.fetch("""
         SELECT user_id, name, interests, lines, description, matches,
-               profile_image, banner_image
+               profile_image, banner_image,
+               likes, matches_nb, popularity
         FROM profiles
         WHERE user_id != $1
         AND NOT ($1 = ANY(block))
         AND NOT (user_id = ANY(
             SELECT UNNEST(block) FROM profiles WHERE user_id = $1
         ))
+        ORDER BY (likes + matches_nb + popularity) DESC
     """, exclude_user_id)
 
     await conn.close()
@@ -220,17 +222,9 @@ def create_profile_embed(profile_data: dict, discord_user: discord.User, show_di
 
     total_popularity = likes + matches + popularity
 
-    embed.set_footer(
-        text=(
-            "```"
-            "Popularity   Likes   Matches\n"
-            f"{total_popularity:^10}{likes:^8}{matches:^10}"
-            "```"
-        )
-    )
-
-
-
+    embed.add_field(name="💖 Popularity", value=total_popularity, inline=True)
+    embed.add_field(name="👍 Likes", value=likes, inline=True)
+    embed.add_field(name="🤝 Matches", value=matches, inline=True)
     return embed
 
 
