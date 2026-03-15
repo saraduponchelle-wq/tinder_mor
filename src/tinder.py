@@ -15,6 +15,7 @@ EMOJI_LINES = str(os.getenv("LINES"))
 EMOJI_STAR = str(os.getenv("STAR"))
 EMOJI_HEART = str(os.getenv("HEART"))
 EMOJI_BROKENHEART = str(os.getenv("BROKENHEART"))
+
 LIKES_STAT = str(os.getenv("LIKES_STAT"))
 MATCHES_STAT = str(os.getenv("MATCHES_STAT"))
 POPULARITY_STAT = str(os.getenv("POPULARITY_STAT"))
@@ -85,8 +86,8 @@ async def get_profiles(exclude_user_id: int):
 
     rows = await conn.fetch("""
         SELECT user_id, name, interests, lines, description, matches,
-               profile_image, banner_image,
-               likes, matches_nb, popularity
+           profile_image, banner_image,
+           likes, matches_nb, popularity, active
         FROM profiles
         WHERE user_id != $1
         AND NOT ($1 = ANY(block))
