@@ -38,6 +38,7 @@ async def add_like(target_id: int):
 
 async def add_match_stat(user1: int, user2: int):
     """Añade match a ambos"""
+
     conn = await get_connection()
 
     await conn.execute(
@@ -46,11 +47,12 @@ async def add_match_stat(user1: int, user2: int):
     )
 
     await conn.execute(
-        "UPDATE profiles SET matches = COALESCE(matches_nb,0) + 1 WHERE user_id=$1",
+        "UPDATE profiles SET matches_nb = COALESCE(matches_nb,0) + 1 WHERE user_id=$1",
         user2
     )
 
     await conn.close()
+
 
 
 async def add_popularity(target_id: int):
@@ -220,10 +222,13 @@ def create_profile_embed(profile_data: dict, discord_user: discord.User, show_di
 
     embed.set_footer(
         text=(
-            "**Popularity**        **Likes**        **Matches**\n"
-            f"{total_popularity}              {likes}              {matches}"
+            "```"
+            "Popularity   Likes   Matches\n"
+            f"{total_popularity:^10}{likes:^8}{matches:^10}"
+            "```"
         )
     )
+
 
 
     return embed
