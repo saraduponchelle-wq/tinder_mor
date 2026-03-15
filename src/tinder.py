@@ -188,34 +188,6 @@ def create_profile_embed(profile_data: dict, discord_user: discord.User, show_di
     )
 
     # -------------------------
-    # STATS
-    # -------------------------
-
-    likes = profile_data.get("likes", 0)
-    matches = profile_data.get("matches_nb", 0)
-    popularity = profile_data.get("popularity", 0)
-
-    total_popularity = likes + matches + popularity
-
-    embed.add_field(
-        name=f"{POPULARITY_STAT} Popularity",
-        value=total_popularity,
-        inline=True
-    )
-
-    embed.add_field(
-        name=f"{LIKES_STAT} Likes",
-        value=likes,
-        inline=True
-    )
-
-    embed.add_field(
-        name=f"{MATCHES_STAT} Matches",
-        value=matches,
-        inline=True
-    )
-
-    # -------------------------
     # INTERESES
     # -------------------------
 
@@ -271,7 +243,33 @@ def create_profile_embed(profile_data: dict, discord_user: discord.User, show_di
             inline=False
         )
 
-    
+    # -------------------------
+    # STATS
+    # -------------------------
+
+    likes = profile_data.get("likes", 0)
+    matches = profile_data.get("matches_nb", 0)
+    popularity = profile_data.get("popularity", 0)
+
+    total_popularity = likes + matches + popularity
+
+    embed.add_field(
+        name=f"{POPULARITY_STAT} Popularity",
+        value=total_popularity,
+        inline=True
+    )
+
+    embed.add_field(
+        name=f"{LIKES_STAT} Likes",
+        value=likes,
+        inline=True
+    )
+
+    embed.add_field(
+        name=f"{MATCHES_STAT} Matches",
+        value=matches,
+        inline=True
+    )
 
     return embed
 
