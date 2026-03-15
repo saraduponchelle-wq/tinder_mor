@@ -93,7 +93,7 @@ async def get_profiles(exclude_user_id: int):
         AND NOT (user_id = ANY(
             SELECT UNNEST(block) FROM profiles WHERE user_id = $1
         ))
-        ORDER BY (likes + matches_nb + popularity) DESC
+        ORDER BY active DESC, popularity DESC, matches DESC
     """, exclude_user_id)
 
     await conn.close()
@@ -179,10 +179,16 @@ async def get_full_profile(user_id: int):
 
 def create_profile_embed(profile_data: dict, discord_user: discord.User, show_discord=False):
 
+    status = "🟢" if profile_data.get("active") else "🔴"
+
     embed = discord.Embed(
-        title=f"{EMOJI_HEART} Perfil de {profile_data['name']}",
+        title=f"{EMOJI_HEART} Perfil de {profile_data['name']} {status}",
         color=discord.Color.pink()
     )
+
+    # -------------------------
+    # INTERESES
+    # -------------------------
 
     embed.add_field(
         name=f"{EMOJI_INTEREST} Intereses",
@@ -190,17 +196,29 @@ def create_profile_embed(profile_data: dict, discord_user: discord.User, show_di
         inline=False
     )
 
+    # -------------------------
+    # LÍNEAS
+    # -------------------------
+
     embed.add_field(
         name=f"{EMOJI_LINES} Líneas",
         value=profile_data.get("lines") or "Sin líneas",
         inline=False
     )
 
+    # -------------------------
+    # BIO
+    # -------------------------
+
     embed.add_field(
         name=f"{EMOJI_STAR} Bio",
         value=profile_data.get("description") or "Sin descripción",
         inline=False
     )
+
+    # -------------------------
+    # IMÁGENES
+    # -------------------------
 
     profile_image = profile_data.get("profile_image")
     banner_image = profile_data.get("banner_image")
@@ -213,21 +231,45 @@ def create_profile_embed(profile_data: dict, discord_user: discord.User, show_di
     if banner_image:
         embed.set_image(url=banner_image)
 
+    # -------------------------
+    # DISCORD USER
+    # -------------------------
+
     if show_discord:
         embed.add_field(
             name="👤 Usuario de Discord",
             value=discord_user.mention,
             inline=False
         )
+
+    # -------------------------
+    # STATS
+    # -------------------------
+
     likes = profile_data.get("likes", 0)
-    matches = profile_data.get("matches_nb", 0)
+    matches = profile_data.get("matches", 0)
     popularity = profile_data.get("popularity", 0)
 
     total_popularity = likes + matches + popularity
 
-    embed.add_field(name=f"{POPULARITY_STAT} Popularity", value=total_popularity, inline=True)
-    embed.add_field(name=f"{LIKES_STAT} Likes", value=likes, inline=True)
-    embed.add_field(name=f"{MATCHES_STAT} Matches", value=matches, inline=True)
+    embed.add_field(
+        name=f"{POPULARITY_STAT} Popularity",
+        value=total_popularity,
+        inline=True
+    )
+
+    embed.add_field(
+        name=f"{LIKES_STAT} Likes",
+        value=likes,
+        inline=True
+    )
+
+    embed.add_field(
+        name=f"{MATCHES_STAT} Matches",
+        value=matches,
+        inline=True
+    )
+
     return embed
 
 
