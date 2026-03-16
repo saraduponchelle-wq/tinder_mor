@@ -6,7 +6,7 @@ import asyncio
 import os
 
 from src.blog_db import add_blog
-from src.blog_notifications import get_users_with_news_ez`nabled
+from src.blog_notifications import get_users_with_news_enabled
 from src.server_db import get_all_servers
 
 BLOG_REVIEW_CHANNEL_ID = int(os.getenv("BLOG_REVIEW_CHANNEL_ID"))
