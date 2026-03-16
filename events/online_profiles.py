@@ -42,7 +42,11 @@ class LikeView(discord.ui.View):
         self.bot = bot
         self.profile_data = profile_data
 
-    @discord.ui.button(label=f"{EMOJI_BOTON_HEART} Like", style=discord.ButtonStyle.success)
+    @discord.ui.button(
+        label="Like",
+        emoji=EMOJI_BOTON_HEART,
+        style=discord.ButtonStyle.success
+    )
     async def like(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         target_id = self.profile_data["user_id"]
