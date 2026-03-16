@@ -4,7 +4,7 @@ import asyncpg
 import os
 from discord.ext import tasks
 
-from src.create_profile import create_profile_embed
+from embed.create_profile import create_profile_embed
 from src.tinder import (
     get_full_profile,
     add_like,
