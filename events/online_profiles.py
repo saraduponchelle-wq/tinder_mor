@@ -167,19 +167,22 @@ class OnlineProfiles:
 
     async def update_active_users(self, conn):
 
-        for guild in self.bot.guilds:
+        rows = await conn.fetch("SELECT user_id FROM profiles")
 
-            for member in guild.members:
+        for row in rows:
 
-                if member.bot:
-                    continue
-
-                if member.status == discord.Status.offline:
-                    continue
-
+            user_id = row["user_id"]
+    
+            user = self.bot.get_user(user_id)
+    
+            if not user:
+                continue
+    
+            if user.status != discord.Status.offline:
+    
                 await conn.execute(
-                    "UPDATE profiles SET active = TRUE WHERE user_id = $1",
-                    member.id
+                    "UPDATE profiles SET active = TRUE WHERE user_id=$1",
+                    user_id
                 )
 
     # ------------------------------------------------
