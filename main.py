@@ -116,6 +116,7 @@ from events.online_profiles import OnlineProfiles
 
 @bot.event
 async def on_ready():
+     await init_db()
     print(f"🤖 Conectado como {bot.user}")
 
     if not hasattr(bot, "online_profiles"):
@@ -131,6 +132,6 @@ import os
 TOKEN = os.getenv("DISCORD_TOKEN")
 if not TOKEN:
     raise ValueError("❌ DISCORD_TOKEN no encontrado")
-await init_db()
+
 print("✅ Token cargado correctamente")
 bot.run(TOKEN)
