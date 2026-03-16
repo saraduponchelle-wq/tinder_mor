@@ -28,6 +28,7 @@ class MyBot(discord.Client):
         from src.tinder import tinder
         from src.blog import blog
         from src.blog_notifications import news
+        from commands.set_channels import set_blogchannel, set_onlineusers
         
         self.tree.add_command(blog)
         self.tree.add_command(start)
@@ -36,6 +37,8 @@ class MyBot(discord.Client):
         self.tree.add_command(delete)
         self.tree.add_command(tinder)
         self.tree.add_command(news)
+        bot.tree.add_command(set_blogchannel)
+        bot.tree.add_command(set_onlineusers)
 
         await self.tree.sync()
         print("✅ Slash commands sincronizados")
