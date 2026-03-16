@@ -104,3 +104,56 @@ async def get_full_profile(user_id: int):
     await conn.close()
 
     return dict(row)
+
+
+import discord
+from embed.create_profile import create_profile_embed
+
+
+async def send_match(user: discord.User, profile_data: dict, other_user: discord.User):
+
+    embed = create_profile_embed(profile_data, other_user, show_discord=True)
+
+    embed.title = f"❤️ ¡Has hecho match con {profile_data['name']}!"
+
+    await user.send(embed=embed)
+
+
+async def send_coucou(user: discord.User, other_user: discord.User):
+
+    embed = discord.Embed(
+        title="👋 Coucou",
+        description=f"{other_user.mention} te saluda.",
+        color=discord.Color.pink()
+    )
+
+    await user.send(embed=embed)
+
+
+class LikeBackView(discord.ui.View):
+
+    def __init__(self, liker_id: int, profile_data: dict, discord_user: discord.User):
+
+        super().__init__(timeout=604800)
+
+        self.liker_id = liker_id
+        self.profile_data = profile_data
+        self.discord_user = discord_user
+
+    @discord.ui.button(label="❤️ Like Back", style=discord.ButtonStyle.success)
+    async def like_back(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        await add_match(interaction.user.id, self.liker_id)
+
+        await interaction.response.edit_message(
+            content="❤️ ¡Has devuelto el like!",
+            view=None
+        )
+
+    @discord.ui.button(label="❌ Rechazar", style=discord.ButtonStyle.danger)
+    async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        await interaction.response.edit_message(
+            content="💔 Has rechazado el like.",
+            view=None
+        )
