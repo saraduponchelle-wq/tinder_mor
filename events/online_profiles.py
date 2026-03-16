@@ -19,6 +19,13 @@ from src.tinder_logic import (
     LikeBackView
 )
 
+EMOJI_GOLDNOTI = str(os.getenv("GOLDNOTI"))
+EMOJI_HEART = str(os.getenv("HEART"))
+EMOJI_BROKENHEART = str(os.getenv("BROKENHEART"))
+
+EMOJI_BOTON_HEART = discord.PartialEmoji.from_str("<a:heart:1477738562433581338>")
+EMOJI_BOTON_BROKENHEART = discord.PartialEmoji.from_str("<:brokenheart:1477739060423299202>")
+
 DATABASE_URL = os.getenv("DATABASE_URL")
 PROFILE_CHANNEL_ID = int(os.getenv("PROFILE_CHANNEL_ID"))
 
@@ -35,7 +42,7 @@ class LikeView(discord.ui.View):
         self.bot = bot
         self.profile_data = profile_data
 
-    @discord.ui.button(label="❤️ Like", style=discord.ButtonStyle.success)
+    @discord.ui.button(label=f"{EMOJI_BOTON_HEART} Like", style=discord.ButtonStyle.success)
     async def like(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         target_id = self.profile_data["user_id"]
@@ -142,7 +149,7 @@ class LikeView(discord.ui.View):
             ephemeral=True
         )
 
-    @discord.ui.button(label="📖 Blogs", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Blogs", style=discord.ButtonStyle.primary)
     async def view_blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         user = await self.bot.fetch_user(self.profile_data["user_id"])

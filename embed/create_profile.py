@@ -16,7 +16,7 @@ def create_profile_embed(profile_data: dict, discord_user: discord.User, show_di
     status = "🟢" if profile_data.get("active") else "🔴"
 
     embed = discord.Embed(
-        title=f"{EMOJI_HEART} Perfil de {profile_data['name']} {status}",
+        title=f"{EMOJI_HEART} {profile_data['name']} {status}",
         color=discord.Color.pink()
     )
 

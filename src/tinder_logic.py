@@ -149,7 +149,11 @@ class LikeBackView(discord.ui.View):
         self.discord_user = discord_user
     
     # ❤️ LIKE BACK
-    @discord.ui.button(label=f"{EMOJI_BOTON_HEART} Match", style=discord.ButtonStyle.success)
+    @discord.ui.button(
+        label="Match",
+        emoji=EMOJI_BOTON_HEART,
+        style=discord.ButtonStyle.success
+    )
     async def like_back(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         user1 = interaction.user
@@ -175,9 +179,11 @@ class LikeBackView(discord.ui.View):
         )
     
     # ❌ RECHAZAR
-    @discord.ui.button(label=f"{EMOJI_BROKENHEART} Rechazar", style=discord.ButtonStyle.danger)
-    async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
-    
+        @discord.ui.button(
+            label="PASS",
+            emoji=EMOJI_BOTON_BROKENHEART,
+            style=discord.ButtonStyle.danger
+        )
         await interaction.response.edit_message(
             content=f"{EMOJI_BROKENHEART} Has rechazado el like.",
             view=None
