@@ -6,7 +6,7 @@ import asyncio
 import os
 
 from src.blog_db import add_blog
-from src.blog_notifications import get_users_with_news_enabled
+from src.blog_notifications import get_users_with_news_ez`nabled
 from src.server_db import get_all_servers
 
 BLOG_REVIEW_CHANNEL_ID = int(os.getenv("BLOG_REVIEW_CHANNEL_ID"))
@@ -24,140 +24,122 @@ EMOJI_NO = str(os.getenv("NO"))
 # ===============================
 
 async def post_blog_for_review(
-client: discord.Client,
-author: discord.User,
-blog_text: str,
-image_url: str | None
+    client: discord.Client,
+    author: discord.User,
+    blog_text: str,
+    image_url: str | None
 ):
 
-```
-channel = client.get_channel(BLOG_REVIEW_CHANNEL_ID)
+    channel = client.get_channel(BLOG_REVIEW_CHANNEL_ID)
 
-if not channel:
-    print("[ERROR] Canal de revisión no encontrado")
-    return
+    if not channel:
+        print("[ERROR] Canal de revisión no encontrado")
+        return
 
-embed = discord.Embed(
-    title=f"{EMOJI_NOTI} Nuevo Blog de {author.display_name}",
-    description=blog_text,
-    color=discord.Color.red()
-)
-
-if image_url:
-    embed.set_image(url=image_url)
-
-embed.set_footer(
-    text=f"Creado por {author}",
-    icon_url=author.display_avatar.url
-)
-
-msg = await channel.send(
-    content=author.mention,
-    embed=embed
-)
-
-await msg.add_reaction("👍")
-
-print(f"[DEBUG] Blog enviado a revisión {msg.id}")
-
-# ===============================
-# CHECK DE APROBACIÓN
-# ===============================
-
-def check(reaction, user):
-
-    if reaction.message.id != msg.id:
-        return False
-
-    if str(reaction.emoji) != "👍":
-        return False
-
-    if user.bot:
-        return False
-
-    member = msg.guild.get_member(user.id)
-
-    return any(role.id == ADMIN_ROLE_ID for role in member.roles)
-
-try:
-
-    reaction, user = await client.wait_for(
-        "reaction_add",
-        timeout=28800,
-        check=check
+    embed = discord.Embed(
+        title=f"{EMOJI_NOTI} Nuevo Blog de {author.display_name}",
+        description=blog_text,
+        color=discord.Color.red()
     )
 
-except asyncio.TimeoutError:
+    if image_url:
+        embed.set_image(url=image_url)
 
-    print("[DEBUG] Blog expiró sin aprobación")
-    return
+    embed.set_footer(
+        text=f"Creado por {author}",
+        icon_url=author.display_avatar.url
+    )
 
-print(f"[DEBUG] Blog aprobado por {user}")
+    msg = await channel.send(
+        content=author.mention,
+        embed=embed
+    )
 
-# ===============================
-# PUBLICAR EN TODOS LOS SERVERS
-# ===============================
+    await msg.add_reaction("👍")
 
-servers = await get_all_servers()
+    print(f"[DEBUG] Blog enviado a revisión {msg.id}")
 
-for server in servers:
+    def check(reaction, user):
 
-    channel_id = server["blog_channel_id"]
+        if reaction.message.id != msg.id:
+            return False
 
-    if not channel_id:
-        continue
+        if str(reaction.emoji) != "👍":
+            return False
 
-    blog_channel = client.get_channel(channel_id)
+        if user.bot:
+            return False
 
-    if not blog_channel:
-        continue
+        member = msg.guild.get_member(user.id)
 
-    try:
-
-        message = await blog_channel.send(
-            content=author.mention,
-            embed=embed
-        )
-
-        if blog_channel.is_news():
-            await message.publish()
-
-    except Exception as e:
-
-        print(f"[ERROR] Blog no enviado a {channel_id}: {e}")
-
-# ===============================
-# ENVIAR A USUARIOS SUSCRITOS
-# ===============================
-
-user_ids = await get_users_with_news_enabled()
-
-for user_id in user_ids:
+        return any(role.id == ADMIN_ROLE_ID for role in member.roles)
 
     try:
 
-        u = await client.fetch_user(user_id)
-
-        await u.send(embed=embed)
-
-        await u.send(
-            f"{EMOJI_MES} Si estás interesado, escríbele a {author.mention}"
+        reaction, user = await client.wait_for(
+            "reaction_add",
+            timeout=28800,
+            check=check
         )
 
-    except Exception as e:
+    except asyncio.TimeoutError:
 
-        print(f"[ERROR] No se pudo enviar DM {user_id}: {e}")
+        print("[DEBUG] Blog expiró sin aprobación")
+        return
 
-# ===============================
-# GUARDAR BLOG
-# ===============================
+    print(f"[DEBUG] Blog aprobado por {user}")
 
-await add_blog(
-    author.id,
-    blog_text,
-    image_url if image_url else "nothing"
-)
-```
+    servers = await get_all_servers()
+
+    for server in servers:
+
+        channel_id = server["blog_channel_id"]
+
+        if not channel_id:
+            continue
+
+        blog_channel = client.get_channel(channel_id)
+
+        if not blog_channel:
+            continue
+
+        try:
+
+            message = await blog_channel.send(
+                content=author.mention,
+                embed=embed
+            )
+
+            if blog_channel.is_news():
+                await message.publish()
+
+        except Exception as e:
+
+            print(f"[ERROR] Blog no enviado a {channel_id}: {e}")
+
+    user_ids = await get_users_with_news_enabled()
+
+    for user_id in user_ids:
+
+        try:
+
+            u = await client.fetch_user(user_id)
+
+            await u.send(embed=embed)
+
+            await u.send(
+                f"{EMOJI_MES} Si estás interesado, escríbele a {author.mention}"
+            )
+
+        except Exception as e:
+
+            print(f"[ERROR] No se pudo enviar DM {user_id}: {e}")
+
+    await add_blog(
+        author.id,
+        blog_text,
+        image_url if image_url else "nothing"
+    )
 
 # ===============================
 
