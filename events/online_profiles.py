@@ -284,10 +284,16 @@ class OnlineProfiles:
 
             try:
 
-                await channel.send(
+                message = await channel.send(
                     embed=embed,
                     view=view
                 )
+
+                if isinstance(channel, discord.TextChannel) and channel.is_news():
+                    try:
+                        await message.publish()
+                    except Exception as e:
+                        print(f"⚠️ Error publicando anuncio: {e}")
 
                 await asyncio.sleep(1)
 
@@ -297,7 +303,11 @@ class OnlineProfiles:
                 await asyncio.sleep(3)
 
                 try:
-                    await channel.send(embed=embed, view=view)
+                    message = await channel.send(embed=embed, view=view)
+
+                    if isinstance(channel, discord.TextChannel) and channel.is_news():
+                        await message.publish()
+
                 except Exception as e:
                     print(f"❌ Error enviando perfil: {e}")
 

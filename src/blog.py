@@ -154,7 +154,17 @@ class BlogImageModal(discord.ui.Modal, title="Añadir URL de la imagen"):
         embed.set_image(url=image_url)
         embed.set_footer(text=f"Creado por {self.author}", icon_url=self.author.display_avatar.url)
 
-        await channel.send(content=f"{self.author.mention}", embed=embed)
+        message = await channel.send(
+            content=f"{self.author.mention}",
+            embed=embed
+        )
+
+        # autopublicar si es canal de anuncios
+        if isinstance(channel, discord.TextChannel) and channel.is_news():
+            try:
+                await message.publish()
+            except Exception as e:
+                print(f"[ERROR] No se pudo autopublicar: {e}")
 
         await add_blog(
             self.author.id,
