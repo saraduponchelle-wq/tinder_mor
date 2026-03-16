@@ -179,11 +179,13 @@ class LikeBackView(discord.ui.View):
         )
     
     # ❌ RECHAZAR
-        @discord.ui.button(
-            label="PASS",
-            emoji=EMOJI_BOTON_BROKENHEART,
-            style=discord.ButtonStyle.danger
-        )
+    @discord.ui.button(
+        label="PASS",
+        emoji=EMOJI_BOTON_BROKENHEART,
+        style=discord.ButtonStyle.danger
+    )
+    async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
+
         await interaction.response.edit_message(
             content=f"{EMOJI_BROKENHEART} Has rechazado el like.",
             view=None
