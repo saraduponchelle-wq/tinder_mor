@@ -143,11 +143,26 @@ class LikeBackView(discord.ui.View):
     # ❤️ LIKE BACK
     @discord.ui.button(label="❤️ Like Back", style=discord.ButtonStyle.success)
     async def like_back(self, interaction: discord.Interaction, button: discord.ui.Button):
-    
-        await add_match(interaction.user.id, self.liker_id)
-    
+
+        user1 = interaction.user
+        user2 = self.discord_user
+
+        # añadir match en DB
+        await add_match(user1.id, self.liker_id)
+
+        # obtener perfiles completos
+        profile1 = await get_full_profile(user1.id)
+        profile2 = await get_full_profile(user2.id)
+
+        # enviar mensaje de match a ambos
+        await send_match(user1, profile2, user2)
+        await send_match(user2, profile1, user1)
+
+        # actualizar estadística
+        await add_match_stat(user1.id, user2.id)
+
         await interaction.response.edit_message(
-            content="❤️ ¡Has devuelto el like!",
+            content="❤️ ¡Es un match!",
             view=None
         )
     
