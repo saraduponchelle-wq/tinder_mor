@@ -210,19 +210,19 @@ class BlogImageModal(discord.ui.Modal, title="Añadir URL de la imagen"):
 
     async def on_submit(self, interaction: discord.Interaction):
 
-    image_url = self.image_url_input.value.strip()
-
-    await interaction.response.send_message(
-        f"{EMOJI_YES} Blog enviado para revisión.",
-        ephemeral=True
-    )
-
-    await post_blog_for_review(
-        interaction.client,
-        self.author,
-        self.blog_text,
-        image_url
-    )
+        image_url = self.image_url_input.value.strip()
+    
+        await interaction.response.send_message(
+            f"{EMOJI_YES} Blog enviado para revisión.",
+            ephemeral=True
+        )
+    
+        await post_blog_for_review(
+            interaction.client,
+            self.author,
+            self.blog_text,
+            image_url
+        )
 
 # ===============================
 # Comando /blog
