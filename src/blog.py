@@ -149,7 +149,7 @@ async def post_blog_for_review(
 
 class BlogTextModal(discord.ui.Modal, title="Escribe tu blog"):
 
-```
+
 blog_text_input = discord.ui.TextInput(
     label="Texto del blog",
     style=discord.TextStyle.paragraph,
@@ -173,7 +173,7 @@ async def on_submit(self, interaction: discord.Interaction):
         view=view,
         ephemeral=True
     )
-```
+
 
 # ===============================
 
@@ -183,7 +183,7 @@ async def on_submit(self, interaction: discord.Interaction):
 
 class BlogImageButtonView(discord.ui.View):
 
-```
+
 def __init__(self, author: discord.User, blog_text: str):
     super().__init__(timeout=None)
     self.author = author
@@ -207,7 +207,7 @@ async def add_image(self, interaction: discord.Interaction, button: discord.ui.B
     await interaction.response.send_modal(
         BlogImageModal(self.author, self.blog_text)
     )
-```
+
 
 # ===============================
 
@@ -217,7 +217,7 @@ async def add_image(self, interaction: discord.Interaction, button: discord.ui.B
 
 class BlogImageModal(discord.ui.Modal, title="Añadir URL de la imagen"):
 
-```
+
 image_url_input = discord.ui.TextInput(
     label="URL de la imagen",
     style=discord.TextStyle.short,
@@ -246,7 +246,7 @@ async def on_submit(self, interaction: discord.Interaction):
         self.blog_text,
         image_url
     )
-```
+
 
 # ===============================
 
@@ -256,13 +256,13 @@ async def on_submit(self, interaction: discord.Interaction):
 
 async def crearblog_callback(interaction: discord.Interaction):
 
-```
+
 print(f"[DEBUG] /blog usado por {interaction.user}")
 
 await interaction.response.send_modal(
     BlogTextModal(interaction.user)
 )
-```
+
 
 blog = app_commands.Command(
 name="blog",
