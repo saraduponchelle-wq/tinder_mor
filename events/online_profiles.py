@@ -172,18 +172,20 @@ class OnlineProfiles:
         active_ids = []
     
         for row in rows:
-    
-            user_id = row["user_id"]
-    
-            for guild in self.bot.guilds:
-    
-                member = guild.get_member(user_id)
-    
-                if member and member.status != discord.Status.offline:
-    
-                    active_ids.append(user_id)
-                    break
-    
+
+        user_id = row["user_id"]
+
+        for guild in self.bot.guilds:
+
+            member = guild.get_member(user_id)
+
+            if member and member.status in (
+                discord.Status.online,
+                discord.Status.idle,
+                discord.Status.dnd
+            ):
+                active_ids.append(user_id)
+                break
     
         if active_ids:
     
