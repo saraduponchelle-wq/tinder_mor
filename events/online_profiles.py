@@ -167,32 +167,32 @@ class OnlineProfiles:
 
     async def update_active_users(self, conn):
 
-    rows = await conn.fetch("SELECT user_id FROM profiles")
+        rows = await conn.fetch("SELECT user_id FROM profiles")
 
-    active_ids = []
+        active_ids = []
 
-    for row in rows:
+        for row in rows:
 
-        user_id = row["user_id"]
+            user_id = row["user_id"]
 
-        for guild in self.bot.guilds:
+            for guild in self.bot.guilds:
 
-            member = guild.get_member(user_id)
+                member = guild.get_member(user_id)
 
-            if member and member.status in (
-                discord.Status.online,
-                discord.Status.idle,
-                discord.Status.dnd
-            ):
-                active_ids.append(user_id)
-                break
+                if member and member.status in (
+                    discord.Status.online,
+                    discord.Status.idle,
+                    discord.Status.dnd
+                ):
+                    active_ids.append(user_id)
+                    break
 
-    if active_ids:
+        if active_ids:
 
-        await conn.execute(
-            "UPDATE profiles SET active = TRUE WHERE user_id = ANY($1)",
-            active_ids
-        )
+            await conn.execute(
+                "UPDATE profiles SET active = TRUE WHERE user_id = ANY($1)",
+                active_ids
+            )
     # ------------------------------------------------
     # MAIN LOOP
     # ------------------------------------------------
