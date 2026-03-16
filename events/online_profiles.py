@@ -5,6 +5,7 @@ import os
 from discord.ext import tasks
 
 from src.blog_viewer import BlogViewer
+from src.server_db import get_all_servers
 
 from embed.create_profile import create_profile_embed
 from src.tinder_logic import (
@@ -239,27 +240,15 @@ class OnlineProfiles:
 
         print("🔄 Actualizando perfiles online...")
 
-        channel = self.bot.get_channel(PROFILE_CHANNEL_ID)
-
-        if not channel:
-            print("❌ Canal no encontrado")
-            return
-
         conn = await asyncpg.connect(DATABASE_URL)
 
-        # 1️⃣ RESET
+        # 1️⃣ RESET ACTIVE
         await self.reset_active(conn)
 
-        # 2️⃣ UPDATE
+        # 2️⃣ DETECTAR USUARIOS ONLINE
         await self.update_active_users(conn)
 
-        # 3️⃣ LIMPIAR CANAL
-        try:
-            await channel.purge()
-        except Exception as e:
-            print(f"⚠️ Error borrando canal: {e}")
-
-        # 4️⃣ OBTENER PERFILES ACTIVOS
+        # 3️⃣ OBTENER PERFILES ACTIVOS
         rows = await conn.fetch(
             """
             SELECT *
@@ -269,46 +258,55 @@ class OnlineProfiles:
             """
         )
 
-        for row in rows:
+        # 4️⃣ OBTENER SERVERS
+        servers = await get_all_servers()
 
-            profile = dict(row)
+        for server in servers:
 
-            try:
-                user = await self.bot.fetch_user(profile["user_id"])
-            except:
+            channel_id = server["online_channel_id"]
+
+            if not channel_id:
                 continue
 
-            embed = create_profile_embed(profile, user)
+            channel = self.bot.get_channel(channel_id)
 
-            view = LikeView(self.bot, profile)
+            if not channel:
+                continue
 
+            # limpiar canal
             try:
+                await channel.purge()
+            except Exception as e:
+                print(f"⚠️ No se pudo limpiar canal {channel_id}: {e}")
 
-                message = await channel.send(
-                    embed=embed,
-                    view=view
-                )
+            # enviar perfiles
+            for row in rows:
 
-                if isinstance(channel, discord.TextChannel) and channel.is_news():
-                    try:
-                        await message.publish()
-                    except Exception as e:
-                        print(f"⚠️ Error publicando anuncio: {e}")
-
-                await asyncio.sleep(1)
-
-            except discord.DiscordServerError:
-
-                print("⚠️ Error 503, reintentando...")
-                await asyncio.sleep(3)
+                profile = dict(row)
 
                 try:
-                    message = await channel.send(embed=embed, view=view)
+                    user = await self.bot.fetch_user(profile["user_id"])
+                except:
+                    continue
 
-                    if isinstance(channel, discord.TextChannel) and channel.is_news():
+                embed = create_profile_embed(profile, user)
+
+                view = LikeView(self.bot, profile)
+
+                try:
+
+                    message = await channel.send(
+                        embed=embed,
+                        view=view
+                    )
+
+                    if channel.is_news():
                         await message.publish()
 
+                    await asyncio.sleep(1)
+
                 except Exception as e:
+
                     print(f"❌ Error enviando perfil: {e}")
 
         await conn.close()

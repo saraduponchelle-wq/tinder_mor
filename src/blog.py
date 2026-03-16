@@ -14,64 +14,136 @@ EMOJI_YES = str(os.getenv("YES"))
 EMOJI_NO = str(os.getenv("NO"))
 
 from src.blog_notifications import get_users_with_news_enabled
+from src.server_db import get_all_servers
 
 
 # ===============================
 # Función para enviar blog a revisión
 # ===============================
 async def post_blog_for_review(client: discord.Client, author: discord.User, blog_text: str, image_url: str | None):
-                """Publica el blog en el canal de revisión y espera aprobación de admin"""
-                channel = client.get_channel(BLOG_REVIEW_CHANNEL_ID)
-                if not channel:
-                    print("[ERROR] Canal de revisión de blogs no encontrado")
-                    return
 
-                embed = discord.Embed(
-                    title=f"**{EMOJI_NOTI} Nuevo Blog de {author.display_name}**\n⚬─────────────✧─────────────⚬",
-                    description=blog_text,
-                    color=discord.Color.red()
-                )
-                if image_url:
-                    embed.set_image(url=image_url)
-                embed.set_footer(text=f"Creado por {author}", icon_url=author.display_avatar.url)
+channel = client.get_channel(BLOG_REVIEW_CHANNEL_ID)
 
-                # 🔹 Enviamos el mensaje de revisión
-                msg = await channel.send(content=f"{author.mention}", embed=embed)
-                await msg.add_reaction("👍")
+if not channel:
+    print("[ERROR] Canal de revisión no encontrado")
+    return
 
-                print(f"[DEBUG] Blog {msg.id} enviado a revisión")
+embed = discord.Embed(
+    title=f"{EMOJI_NOTI} Nuevo Blog de {author.display_name}",
+    description=blog_text,
+    color=discord.Color.red()
+)
 
-                # 🔹 CHECK CORREGIDO (MUY IMPORTANTE)
-                def check(reaction, user):
-                    return (
-                        reaction.message.id == msg.id and  # ✅ SOLO ESTE MENSAJE
-                        str(reaction.emoji) == "👍" and
-                        user.id != client.user.id and
-                        any(role.id == ADMIN_ROLE_ID for role in user.roles)
-                    )
+if image_url:
+    embed.set_image(url=image_url)
 
-                try:
-                    reaction, user = await client.wait_for(
-                        "reaction_add",
-                        timeout=28800,  # 8 horas
-                        check=check
-                    )
-                    print(f"[DEBUG] Blog {msg.id} aprobado por {user}")
-                except asyncio.TimeoutError:
-                    print(f"[DEBUG] Blog {msg.id} expiró sin aprobación")
-                    return
+embed.set_footer(
+    text=f"Creado por {author}",
+    icon_url=author.display_avatar.url
+)
 
-                # 🔹 Solo este blog se enviará
-                user_ids = await get_users_with_news_enabled()
-                print(f"[DEBUG] Enviando blog {msg.id} a {len(user_ids)} usuarios")
+msg = await channel.send(
+    content=f"{author.mention}",
+    embed=embed
+)
 
-                for user_id in user_ids:
-                    try:
-                        u = await client.fetch_user(user_id)
-                        await u.send(embed=embed)
-                        await u.send(f"{EMOJI_MES} Si estás interesado, escríbele a {author.mention}")
-                    except Exception as e:
-                        print(f"[ERROR] No se pudo enviar a {user_id}: {e}")
+await msg.add_reaction("👍")
+
+print(f"[DEBUG] Blog enviado a revisión {msg.id}")
+
+def check(reaction, user):
+
+    if reaction.message.id != msg.id:
+        return False
+
+    if str(reaction.emoji) != "👍":
+        return False
+
+    if user.bot:
+        return False
+
+    member = msg.guild.get_member(user.id)
+
+    return any(role.id == ADMIN_ROLE_ID for role in member.roles)
+
+try:
+
+    reaction, user = await client.wait_for(
+        "reaction_add",
+        timeout=28800,
+        check=check
+    )
+
+except asyncio.TimeoutError:
+
+    print("[DEBUG] Blog expiró sin aprobación")
+    return
+
+print(f"[DEBUG] Blog aprobado por {user}")
+
+# =================================
+# PUBLICAR EN TODOS LOS SERVERS
+# =================================
+
+servers = await get_all_servers()
+
+for server in servers:
+
+    channel_id = server["blog_channel_id"]
+
+    if not channel_id:
+        continue
+
+    blog_channel = client.get_channel(channel_id)
+
+    if not blog_channel:
+        continue
+
+    try:
+
+        message = await blog_channel.send(
+            content=f"{author.mention}",
+            embed=embed
+        )
+
+        if blog_channel.is_news():
+            await message.publish()
+
+    except Exception as e:
+
+        print(f"[ERROR] Blog no enviado a {channel_id}: {e}")
+
+# =================================
+# ENVIAR A USUARIOS SUSCRITOS
+# =================================
+
+user_ids = await get_users_with_news_enabled()
+
+for user_id in user_ids:
+
+    try:
+
+        u = await client.fetch_user(user_id)
+
+        await u.send(embed=embed)
+
+        await u.send(
+            f"{EMOJI_MES} Si estás interesado, escríbele a {author.mention}"
+        )
+
+    except Exception as e:
+
+        print(f"[ERROR] No se pudo enviar DM {user_id}: {e}")
+
+# =================================
+# GUARDAR BLOG
+# =================================
+
+await add_blog(
+    author.id,
+    blog_text,
+    image_url if image_url else "nothing"
+)
 
 # ===============================
 # Modal de texto del blog
@@ -137,52 +209,20 @@ class BlogImageModal(discord.ui.Modal, title="Añadir URL de la imagen"):
         self.blog_text = blog_text
 
     async def on_submit(self, interaction: discord.Interaction):
-        image_url = self.image_url_input.value.strip()
-        print(f"[DEBUG] URL de imagen recibido: {image_url}")
 
-        # Publicar en canal principal
-        channel = interaction.guild.get_channel(BLOG_CHANNEL_ID)
-        if not channel:
-            await interaction.response.send_message(f"{EMOJI_NO} Canal de blogs no encontrado.", ephemeral=True)
-            return
+    image_url = self.image_url_input.value.strip()
 
-        embed = discord.Embed(
-            title="**" + EMOJI_NOTI + " Nuevo Blog de " + self.author.display_name + "**\n" + "⚬─────────────✧─────────────⚬",
-            description=self.blog_text,
-            color=discord.Color.red()
-        )
-        embed.set_image(url=image_url)
-        embed.set_footer(text=f"Creado por {self.author}", icon_url=self.author.display_avatar.url)
+    await interaction.response.send_message(
+        f"{EMOJI_YES} Blog enviado para revisión.",
+        ephemeral=True
+    )
 
-        message = await channel.send(
-            content=f"{self.author.mention}",
-            embed=embed
-        )
-
-        # autopublicar si es canal de anuncios
-        if isinstance(channel, discord.TextChannel) and channel.is_news():
-            try:
-                await message.publish()
-            except Exception as e:
-                print(f"[ERROR] No se pudo autopublicar: {e}")
-
-        await add_blog(
-            self.author.id,
-            self.blog_text,
-            image_url if image_url else "nothing"
-        )
-
-        await interaction.response.send_message(
-            f"{EMOJI_YES} Tu blog ha sido publicado y guardado en tu perfil!",
-            ephemeral=True
-        )
-
-        await post_blog_for_review(
-            interaction.client,
-            self.author,
-            self.blog_text,
-            image_url
-        )
+    await post_blog_for_review(
+        interaction.client,
+        self.author,
+        self.blog_text,
+        image_url
+    )
 
 # ===============================
 # Comando /blog
