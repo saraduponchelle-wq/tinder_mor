@@ -3,6 +3,7 @@ from discord import app_commands
 from discord import RawReactionActionEvent
 from src.blog_notifications import get_users_with_news_enabled
 import os
+from src.database import init_db
 
 
 ADMIN_ROLE_ID = int(os.getenv("ADMIN_ROLE_ID"))
@@ -130,6 +131,6 @@ import os
 TOKEN = os.getenv("DISCORD_TOKEN")
 if not TOKEN:
     raise ValueError("❌ DISCORD_TOKEN no encontrado")
-
+await init_db()
 print("✅ Token cargado correctamente")
 bot.run(TOKEN)

@@ -15,16 +15,27 @@ from src.server_db import set_blog_channel, set_online_channel
 
 async def set_blogchannel(interaction: discord.Interaction, channel: discord.TextChannel):
 
-    await set_blog_channel(
-        interaction.guild.id,
-        channel.id,
-        interaction.guild.name
-    )
+    await interaction.response.defer(ephemeral=True)
 
-    await interaction.response.send_message(
-        f"✅ Canal de blogs configurado: {channel.mention}",
-        ephemeral=True
-    )
+    try:
+
+        await set_blog_channel(
+            interaction.guild.id,
+            channel.id,
+            interaction.guild.name
+        )
+
+        await interaction.followup.send(
+            f"✅ Canal de blogs configurado: {channel.mention}"
+        )
+
+    except Exception as e:
+
+        print("ERROR set_blogchannel:", e)
+
+        await interaction.followup.send(
+            "❌ Error guardando el canal."
+        )
 
 
 # ===============================
@@ -39,16 +50,27 @@ async def set_blogchannel(interaction: discord.Interaction, channel: discord.Tex
 
 async def set_onlineusers(interaction: discord.Interaction, channel: discord.TextChannel):
 
-    await set_online_channel(
-        interaction.guild.id,
-        channel.id,
-        interaction.guild.name
-    )
+    await interaction.response.defer(ephemeral=True)
 
-    await interaction.response.send_message(
-        f"✅ Canal de usuarios online configurado: {channel.mention}",
-        ephemeral=True
-    )
+    try:
+
+        await set_online_channel(
+            interaction.guild.id,
+            channel.id,
+            interaction.guild.name
+        )
+
+        await interaction.followup.send(
+            f"✅ Canal de usuarios online configurado: {channel.mention}"
+        )
+
+    except Exception as e:
+
+        print("ERROR set_onlineusers:", e)
+
+        await interaction.followup.send(
+            "❌ Error guardando el canal."
+        )
 
 
 # ===============================

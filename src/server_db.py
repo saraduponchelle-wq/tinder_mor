@@ -1,7 +1,4 @@
-import asyncpg
-import os
-
-DATABASE_URL = os.getenv("DATABASE_URL")
+from src.database import get_pool
 
 
 # ===============================
@@ -10,16 +7,16 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 async def set_blog_channel(guild_id: int, channel_id: int, server_name: str):
 
-    conn = await asyncpg.connect(DATABASE_URL)
+    pool = await get_pool()
 
-    await conn.execute("""
-        INSERT INTO servers (guild_id, blog_channel_id, server_name)
-        VALUES ($1,$2,$3)
-        ON CONFLICT (guild_id)
-        DO UPDATE SET blog_channel_id = EXCLUDED.blog_channel_id
-    """, guild_id, channel_id, server_name)
+    async with pool.acquire() as conn:
 
-    await conn.close()
+        await conn.execute("""
+            INSERT INTO servers (guild_id, blog_channel_id, server_name)
+            VALUES ($1,$2,$3)
+            ON CONFLICT (guild_id)
+            DO UPDATE SET blog_channel_id = EXCLUDED.blog_channel_id
+        """, guild_id, channel_id, server_name)
 
 
 # ===============================
@@ -28,16 +25,16 @@ async def set_blog_channel(guild_id: int, channel_id: int, server_name: str):
 
 async def set_online_channel(guild_id: int, channel_id: int, server_name: str):
 
-    conn = await asyncpg.connect(DATABASE_URL)
+    pool = await get_pool()
 
-    await conn.execute("""
-        INSERT INTO servers (guild_id, online_channel_id, server_name)
-        VALUES ($1,$2,$3)
-        ON CONFLICT (guild_id)
-        DO UPDATE SET online_channel_id = EXCLUDED.online_channel_id
-    """, guild_id, channel_id, server_name)
+    async with pool.acquire() as conn:
 
-    await conn.close()
+        await conn.execute("""
+            INSERT INTO servers (guild_id, online_channel_id, server_name)
+            VALUES ($1,$2,$3)
+            ON CONFLICT (guild_id)
+            DO UPDATE SET online_channel_id = EXCLUDED.online_channel_id
+        """, guild_id, channel_id, server_name)
 
 
 # ===============================
@@ -46,12 +43,12 @@ async def set_online_channel(guild_id: int, channel_id: int, server_name: str):
 
 async def get_all_servers():
 
-    conn = await asyncpg.connect(DATABASE_URL)
+    pool = await get_pool()
 
-    rows = await conn.fetch(
-        "SELECT * FROM servers"
-    )
+    async with pool.acquire() as conn:
 
-    await conn.close()
+        rows = await conn.fetch(
+            "SELECT * FROM servers"
+        )
 
-    return rows
+        return rows
