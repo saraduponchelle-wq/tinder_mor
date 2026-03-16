@@ -116,7 +116,8 @@ from events.online_profiles import OnlineProfiles
 
 @bot.event
 async def on_ready():
-     await init_db()
+    
+    await init_db()
     print(f"🤖 Conectado como {bot.user}")
 
     if not hasattr(bot, "online_profiles"):
