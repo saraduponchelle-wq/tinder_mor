@@ -163,22 +163,25 @@ class LikeBackView(discord.ui.View):
     # 📖 VER BLOGS
     @discord.ui.button(label="📖 Ver Blogs", style=discord.ButtonStyle.secondary)
     async def view_blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
-    
+
         from src.blog_viewer import BlogViewer
-    
-        viewer = BlogViewer(self.discord_user)
-    
+        from embed.create_profile import create_profile_embed
+
+        profile_embed = create_profile_embed(self.profile_data, self.discord_user)
+
+        viewer = BlogViewer(self.discord_user, profile_embed, self)
+
         await viewer.load()
-    
+
         if not viewer.blogs:
-    
+
             await interaction.response.send_message(
                 "📭 Este usuario no tiene blogs.",
                 ephemeral=True
             )
-    
+
             return
-    
+
         await interaction.response.send_message(
             embed=viewer.create_embed(),
             view=viewer,

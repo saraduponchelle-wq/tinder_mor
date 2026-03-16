@@ -142,27 +142,29 @@ class LikeView(discord.ui.View):
             ephemeral=True
         )
 
-        @discord.ui.button(label="📖 Blogs", style=discord.ButtonStyle.secondary)
-        async def view_blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="📖 Blogs", style=discord.ButtonStyle.secondary)
+    async def view_blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
 
-            user = await self.bot.fetch_user(self.profile_data["user_id"])
+        user = await self.bot.fetch_user(self.profile_data["user_id"])
 
-            viewer = BlogViewer(user)
+        profile_embed = create_profile_embed(self.profile_data, user)
 
-            await viewer.load()
+        viewer = BlogViewer(user, profile_embed, self)
 
-            if not viewer.blogs:
-                await interaction.response.send_message(
-                    "📭 Este usuario no tiene blogs.",
-                    ephemeral=True
-                )
-                return
+        await viewer.load()
 
+        if not viewer.blogs:
             await interaction.response.send_message(
-                embed=viewer.create_embed(),
-                view=viewer,
+                "📭 Este usuario no tiene blogs.",
                 ephemeral=True
             )
+            return
+
+        await interaction.response.send_message(
+            embed=viewer.create_embed(),
+            view=viewer,
+            ephemeral=True
+        )
 
 
 # ==========================================================
