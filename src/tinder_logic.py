@@ -131,29 +131,79 @@ async def send_coucou(user: discord.User, other_user: discord.User):
 
 
 class LikeBackView(discord.ui.View):
-
+    
     def __init__(self, liker_id: int, profile_data: dict, discord_user: discord.User):
-
+    
         super().__init__(timeout=604800)
-
+    
         self.liker_id = liker_id
         self.profile_data = profile_data
         self.discord_user = discord_user
-
+    
+    # ❤️ LIKE BACK
     @discord.ui.button(label="❤️ Like Back", style=discord.ButtonStyle.success)
     async def like_back(self, interaction: discord.Interaction, button: discord.ui.Button):
-
+    
         await add_match(interaction.user.id, self.liker_id)
-
+    
         await interaction.response.edit_message(
             content="❤️ ¡Has devuelto el like!",
             view=None
         )
-
+    
+    # ❌ RECHAZAR
     @discord.ui.button(label="❌ Rechazar", style=discord.ButtonStyle.danger)
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
-
+    
         await interaction.response.edit_message(
             content="💔 Has rechazado el like.",
+            view=None
+        )
+    
+    # 📖 VER BLOGS
+    @discord.ui.button(label="📖 Ver Blogs", style=discord.ButtonStyle.secondary)
+    async def view_blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
+    
+        from src.blog_viewer import BlogViewer
+    
+        viewer = BlogViewer(self.discord_user)
+    
+        await viewer.load()
+    
+        if not viewer.blogs:
+    
+            await interaction.response.send_message(
+                "📭 Este usuario no tiene blogs.",
+                ephemeral=True
+            )
+    
+            return
+    
+        await interaction.response.send_message(
+            embed=viewer.create_embed(),
+            view=viewer,
+            ephemeral=True
+        )
+    
+    # 🚫 BLOQUEAR
+    @discord.ui.button(label="🚫 Bloquear", style=discord.ButtonStyle.danger)
+    async def block(self, interaction: discord.Interaction, button: discord.ui.Button):
+    
+        conn = await get_connection()
+    
+        await conn.execute(
+            """
+            UPDATE profiles
+            SET block = array_append(block, $1)
+            WHERE user_id = $2
+            """,
+            self.liker_id,
+            interaction.user.id
+        )
+    
+        await conn.close()
+    
+        await interaction.response.edit_message(
+            content="🚫 Usuario bloqueado.",
             view=None
         )

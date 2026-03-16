@@ -4,6 +4,8 @@ import asyncpg
 import os
 from discord.ext import tasks
 
+from src.blog_viewer import BlogViewer
+
 from embed.create_profile import create_profile_embed
 from src.tinder_logic import (
     get_full_profile,
@@ -139,6 +141,28 @@ class LikeView(discord.ui.View):
             "❤️ Like enviado.",
             ephemeral=True
         )
+
+        @discord.ui.button(label="📖 Blogs", style=discord.ButtonStyle.secondary)
+        async def view_blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+            user = await self.bot.fetch_user(self.profile_data["user_id"])
+
+            viewer = BlogViewer(user)
+
+            await viewer.load()
+
+            if not viewer.blogs:
+                await interaction.response.send_message(
+                    "📭 Este usuario no tiene blogs.",
+                    ephemeral=True
+                )
+                return
+
+            await interaction.response.send_message(
+                embed=viewer.create_embed(),
+                view=viewer,
+                ephemeral=True
+            )
 
 
 # ==========================================================
