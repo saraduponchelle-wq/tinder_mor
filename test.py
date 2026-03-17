@@ -1,11 +1,12 @@
 import discord
-from PIL import Image, ImageDraw, ImageSequence
+from PIL import Image, ImageDraw, ImageSequence, UnidentifiedImageError
 import aiohttp
 import io
 
 from src.tinder import get_full_profile
 
 CHANNEL_ID = 1483534237838741657
+
 
 async def test(bot: discord.Client, user: discord.User):
 
@@ -14,19 +15,42 @@ async def test(bot: discord.Client, user: discord.User):
     # =========================
     profile = await get_full_profile(user.id)
 
-    avatar_url = profile["profile_image"]
+    avatar_url = profile.get("profile_image")
 
     if not avatar_url or avatar_url == "nothing":
         avatar_url = user.display_avatar.url
 
-    is_gif = avatar_url.endswith(".gif")
-
     # =========================
-    # DESCARGAR IMAGEN
+    # DESCARGAR IMAGEN (ROBUSTO)
     # =========================
     async with aiohttp.ClientSession() as session:
+
         async with session.get(avatar_url) as resp:
-            avatar_bytes = await resp.read()
+
+            if resp.status != 200:
+                print(f"❌ Error descargando imagen ({resp.status}), usando avatar")
+
+                async with session.get(user.display_avatar.url) as resp2:
+                    avatar_bytes = await resp2.read()
+
+            else:
+                avatar_bytes = await resp.read()
+
+    # =========================
+    # VALIDAR IMAGEN
+    # =========================
+    try:
+        test_img = Image.open(io.BytesIO(avatar_bytes))
+        test_img.verify()
+    except UnidentifiedImageError:
+        print("❌ Imagen inválida, fallback a avatar Discord")
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(user.display_avatar.url) as resp:
+                avatar_bytes = await resp.read()
+
+    # detectar GIF después de validar
+    is_gif = avatar_url.endswith(".gif")
 
     # =========================
     # CARGAR MARCO
