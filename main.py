@@ -30,7 +30,8 @@ class MyBot(discord.Client):
         from src.blog import blog
         from src.blog_notifications import news
         from commands.set_channels import set_blogchannel, set_onlineusers
-        
+        from test import test
+
         self.tree.add_command(blog)
         self.tree.add_command(start)
         self.tree.add_command(update)
@@ -38,10 +39,26 @@ class MyBot(discord.Client):
         self.tree.add_command(delete)
         self.tree.add_command(tinder)
         self.tree.add_command(news)
-        bot.tree.add_command(set_blogchannel)
-        bot.tree.add_command(set_onlineusers)
+        self.tree.add_command(set_blogchannel)
+        self.tree.add_command(set_onlineusers)
+
+        # ✅ comando test
+        @app_commands.command(name="testpfp", description="Test imagen perfil con marco")
+        async def testpfp(interaction: discord.Interaction):
+
+            await interaction.response.defer()
+
+            url = await test(self, interaction.user)
+
+            await interaction.followup.send(
+                f"✅ Imagen generada:\n{url}",
+                ephemeral=True
+            )
+
+        self.tree.add_command(testpfp)
 
         await self.tree.sync()
+        print("✅ Slash commands sincronizados")
         print("✅ Slash commands sincronizados")
 
 bot = MyBot()
