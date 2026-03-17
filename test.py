@@ -8,6 +8,24 @@ from src.tinder import get_full_profile
 CHANNEL_ID = 1483534237838741657
 
 
+# =========================
+# RECORTAR A CUADRADO
+# =========================
+def crop_to_square(img: Image.Image) -> Image.Image:
+    width, height = img.size
+    min_dim = min(width, height)
+
+    left = (width - min_dim) // 2
+    top = (height - min_dim) // 2
+    right = left + min_dim
+    bottom = top + min_dim
+
+    return img.crop((left, top, right, bottom))
+
+
+# =========================
+# FUNCIÓN PRINCIPAL
+# =========================
 async def test(bot: discord.Client, user: discord.User):
 
     # =========================
@@ -21,18 +39,17 @@ async def test(bot: discord.Client, user: discord.User):
         avatar_url = user.display_avatar.url
 
     # =========================
-    # DESCARGAR IMAGEN (ROBUSTO)
+    # DESCARGAR IMAGEN
     # =========================
     async with aiohttp.ClientSession() as session:
 
         async with session.get(avatar_url) as resp:
 
             if resp.status != 200:
-                print(f"❌ Error descargando imagen ({resp.status}), usando avatar")
+                print(f"❌ Error descargando ({resp.status}), usando avatar")
 
                 async with session.get(user.display_avatar.url) as resp2:
                     avatar_bytes = await resp2.read()
-
             else:
                 avatar_bytes = await resp.read()
 
@@ -43,13 +60,12 @@ async def test(bot: discord.Client, user: discord.User):
         test_img = Image.open(io.BytesIO(avatar_bytes))
         test_img.verify()
     except UnidentifiedImageError:
-        print("❌ Imagen inválida, fallback a avatar Discord")
+        print("❌ Imagen inválida, fallback")
 
         async with aiohttp.ClientSession() as session:
             async with session.get(user.display_avatar.url) as resp:
                 avatar_bytes = await resp.read()
 
-    # detectar GIF después de validar
     is_gif = avatar_url.endswith(".gif")
 
     # =========================
@@ -70,12 +86,19 @@ async def test(bot: discord.Client, user: discord.User):
 
         avatar = Image.open(io.BytesIO(avatar_bytes))
         frames = []
+        durations = []
 
         for frame in ImageSequence.Iterator(avatar):
 
-            frame = frame.convert("RGBA").resize((size, size))
+            frame = frame.convert("RGBA")
 
-            # máscara circular
+            # 🔻 recortar cuadrado
+            frame = crop_to_square(frame)
+
+            # 🔻 resize
+            frame = frame.resize((size, size))
+
+            # 🔻 máscara circular
             mask = Image.new("L", (size, size), 0)
             draw = ImageDraw.Draw(mask)
             draw.ellipse((0, 0, size, size), fill=255)
@@ -88,14 +111,17 @@ async def test(bot: discord.Client, user: discord.User):
 
             frames.append(final)
 
+            durations.append(frame.info.get("duration", 80))
+
         frames[0].save(
             output_buffer,
             format="GIF",
             save_all=True,
             append_images=frames[1:],
-            duration=avatar.info.get("duration", 80),
+            duration=durations,
             loop=0,
-            disposal=2
+            disposal=2,
+            optimize=False
         )
 
         filename = "profile.gif"
@@ -106,8 +132,14 @@ async def test(bot: discord.Client, user: discord.User):
     else:
 
         avatar = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA")
+
+        # 🔻 recortar cuadrado
+        avatar = crop_to_square(avatar)
+
+        # 🔻 resize
         avatar = avatar.resize((size, size))
 
+        # 🔻 máscara circular
         mask = Image.new("L", (size, size), 0)
         draw = ImageDraw.Draw(mask)
         draw.ellipse((0, 0, size, size), fill=255)
@@ -119,6 +151,7 @@ async def test(bot: discord.Client, user: discord.User):
         final.paste(frame_img, (0, 0), frame_img)
 
         final.save(output_buffer, format="PNG")
+
         filename = "profile.png"
 
     output_buffer.seek(0)
