@@ -34,7 +34,6 @@ async def download_image(url, fallback_url):
         except:
             pass
 
-        # fallback
         async with session.get(fallback_url) as resp:
             return await resp.read()
 
@@ -44,9 +43,6 @@ async def download_image(url, fallback_url):
 # =========================
 async def test(bot: discord.Client, user: discord.User, frame_name="princess"):
 
-    # =========================
-    # OBTENER IMAGEN
-    # =========================
     profile = await get_full_profile(user.id)
 
     avatar_url = profile.get("profile_image")
@@ -75,11 +71,9 @@ async def test(bot: discord.Client, user: discord.User, frame_name="princess"):
     # =========================
     frame = Image.open(f"marcos/{frame_name}.png").convert("RGBA")
 
-    # 🔥 reducimos tamaño base
     BASE_SIZE = 512
     frame = frame.resize((BASE_SIZE, BASE_SIZE))
 
-    # 🔥 avatar más pequeño (20% menos)
     AVATAR_SIZE = int(BASE_SIZE * 0.8)
     pos = ((BASE_SIZE - AVATAR_SIZE) // 2, (BASE_SIZE - AVATAR_SIZE) // 2)
 
@@ -113,26 +107,27 @@ async def test(bot: discord.Client, user: discord.User, frame_name="princess"):
 
             frames.append(final)
 
+            # ✅ mantener duración original
             durations.append(frame_gif.info.get("duration", 80))
 
-            # 🔥 límite de frames para evitar archivos enormes
-            if len(frames) > 20:
-                break
+        try:
+            frames[0].save(
+                output_buffer,
+                format="GIF",
+                save_all=True,
+                append_images=frames[1:],
+                duration=durations,
+                loop=0,
+                optimize=False
+            )
+            filename = "profile.gif"
 
-        frames[0].save(
-            output_buffer,
-            format="GIF",
-            save_all=True,
-            append_images=frames[1:],
-            duration=durations,
-            loop=0,
-            optimize=True
-        )
-
-        filename = "profile.gif"
+        except Exception as e:
+            print("❌ Error creando GIF:", e)
+            return "❌ El GIF es demasiado grande para procesar."
 
     # =========================
-    # PNG → JPG (OPTIMIZADO)
+    # PNG / JPG
     # =========================
     else:
 
@@ -151,7 +146,6 @@ async def test(bot: discord.Client, user: discord.User, frame_name="princess"):
         final.paste(avatar, pos, avatar)
         final.paste(frame, (0, 0), frame)
 
-        # 🔥 convertir a JPG (mucho más ligero)
         final = final.convert("RGB")
 
         final.save(
@@ -166,23 +160,12 @@ async def test(bot: discord.Client, user: discord.User, frame_name="princess"):
     output_buffer.seek(0)
 
     # =========================
-    # EXTRA SEGURIDAD (TAMAÑO)
+    # CONTROL DE TAMAÑO
     # =========================
-    if output_buffer.getbuffer().nbytes > 7_500_000:
-        print("⚠️ Imagen aún pesada, reduciendo más...")
+    if output_buffer.getbuffer().nbytes > 8_000_000:
+        print("❌ GIF demasiado grande")
 
-        avatar = avatar.resize((256, 256))
-        output_buffer = io.BytesIO()
-
-        avatar.convert("RGB").save(
-            output_buffer,
-            format="JPEG",
-            quality=70,
-            optimize=True
-        )
-
-        output_buffer.seek(0)
-        filename = "profile_small.jpg"
+        return "❌ El GIF es demasiado grande (máx 8MB)."
 
     # =========================
     # SUBIR A DISCORD
@@ -193,9 +176,13 @@ async def test(bot: discord.Client, user: discord.User, frame_name="princess"):
         print("❌ Canal no encontrado")
         return
 
-    msg = await channel.send(
-        file=discord.File(output_buffer, filename=filename)
-    )
+    try:
+        msg = await channel.send(
+            file=discord.File(output_buffer, filename=filename)
+        )
+
+    except discord.HTTPException:
+        return "❌ El GIF es demasiado grande para Discord."
 
     url = msg.attachments[0].url
     print("✅ Imagen subida:", url)
