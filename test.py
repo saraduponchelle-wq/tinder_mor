@@ -54,11 +54,12 @@ async def test(bot: discord.Client, user: discord.User):
                 avatar_bytes = await resp.read()
 
     # =========================
-    # VALIDAR IMAGEN
+    # VALIDAR + DETECTAR GIF
     # =========================
     try:
-        test_img = Image.open(io.BytesIO(avatar_bytes))
-        test_img.verify()
+        img_test = Image.open(io.BytesIO(avatar_bytes))
+        is_gif = getattr(img_test, "is_animated", False)
+        img_test.verify()
     except UnidentifiedImageError:
         print("❌ Imagen inválida, fallback")
 
@@ -66,7 +67,11 @@ async def test(bot: discord.Client, user: discord.User):
             async with session.get(user.display_avatar.url) as resp:
                 avatar_bytes = await resp.read()
 
-    is_gif = avatar_url.endswith(".gif")
+        img_test = Image.open(io.BytesIO(avatar_bytes))
+        is_gif = getattr(img_test, "is_animated", False)
+
+    # ⚠️ REABRIR imagen (verify la rompe)
+    avatar = Image.open(io.BytesIO(avatar_bytes))
 
     # =========================
     # CARGAR MARCO
@@ -84,7 +89,6 @@ async def test(bot: discord.Client, user: discord.User):
     # =========================
     if is_gif:
 
-        avatar = Image.open(io.BytesIO(avatar_bytes))
         frames = []
         durations = []
 
@@ -92,13 +96,13 @@ async def test(bot: discord.Client, user: discord.User):
 
             frame = frame.convert("RGBA")
 
-            # 🔻 recortar cuadrado
+            # recorte cuadrado
             frame = crop_to_square(frame)
 
-            # 🔻 resize
+            # resize
             frame = frame.resize((size, size))
 
-            # 🔻 máscara circular
+            # máscara circular
             mask = Image.new("L", (size, size), 0)
             draw = ImageDraw.Draw(mask)
             draw.ellipse((0, 0, size, size), fill=255)
@@ -131,15 +135,11 @@ async def test(bot: discord.Client, user: discord.User):
     # =========================
     else:
 
-        avatar = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA")
+        avatar = avatar.convert("RGBA")
 
-        # 🔻 recortar cuadrado
         avatar = crop_to_square(avatar)
-
-        # 🔻 resize
         avatar = avatar.resize((size, size))
 
-        # 🔻 máscara circular
         mask = Image.new("L", (size, size), 0)
         draw = ImageDraw.Draw(mask)
         draw.ellipse((0, 0, size, size), fill=255)
