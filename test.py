@@ -3,31 +3,41 @@ from PIL import Image, ImageDraw, ImageSequence
 import aiohttp
 import io
 
+from src.profile_db import get_profile  # 🔥 IMPORTANTE
+
 CHANNEL_ID = 1483534237838741657
 
 async def test(bot: discord.Client, user: discord.User):
 
-    # Detectar si es GIF
-    is_gif = user.display_avatar.is_animated()
+    # =========================
+    # OBTENER IMAGEN DESDE DB
+    # =========================
+    profile = await get_profile(user.id)
 
-    format = "gif" if is_gif else "png"
-    avatar_url = user.display_avatar.replace(size=1024, format=format).url
+    avatar_url = profile["profile_image"]
 
-    # Descargar avatar
+    if not avatar_url or avatar_url == "nothing":
+        avatar_url = user.display_avatar.url
+
+    is_gif = avatar_url.endswith(".gif")
+
+    # =========================
+    # DESCARGAR IMAGEN
+    # =========================
     async with aiohttp.ClientSession() as session:
         async with session.get(avatar_url) as resp:
             avatar_bytes = await resp.read()
 
-    # Cargar marco
+    # =========================
+    # CARGAR MARCO
+    # =========================
     frame_img = Image.open("marcos/princess.png").convert("RGBA")
     frame_img = frame_img.resize((1024, 1024))
 
-    # Crear máscara circular
-    mask = Image.new("L", (1024, 1024), 0)
-    draw = ImageDraw.Draw(mask)
-    draw.ellipse((0, 0, 1024, 1024), fill=255)
-
     output_buffer = io.BytesIO()
+
+    size = 819
+    pos = ((1024 - size) // 2, (1024 - size) // 2)
 
     # =========================
     # CASO GIF
@@ -35,24 +45,25 @@ async def test(bot: discord.Client, user: discord.User):
     if is_gif:
 
         avatar = Image.open(io.BytesIO(avatar_bytes))
-
         frames = []
 
         for frame in ImageSequence.Iterator(avatar):
 
-            frame = frame.convert("RGBA").resize((1024, 1024))
+            frame = frame.convert("RGBA").resize((size, size))
 
-            # aplicar círculo
+            # máscara circular
+            mask = Image.new("L", (size, size), 0)
+            draw = ImageDraw.Draw(mask)
+            draw.ellipse((0, 0, size, size), fill=255)
+
             frame.putalpha(mask)
 
-            # combinar con marco
             final = Image.new("RGBA", (1024, 1024))
-            final.paste(frame, (0, 0), frame)
+            final.paste(frame, pos, frame)
             final.paste(frame_img, (0, 0), frame_img)
 
             frames.append(final)
 
-        # guardar GIF
         frames[0].save(
             output_buffer,
             format="GIF",
@@ -71,12 +82,16 @@ async def test(bot: discord.Client, user: discord.User):
     else:
 
         avatar = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA")
-        avatar = avatar.resize((1024, 1024))
+        avatar = avatar.resize((size, size))
+
+        mask = Image.new("L", (size, size), 0)
+        draw = ImageDraw.Draw(mask)
+        draw.ellipse((0, 0, size, size), fill=255)
 
         avatar.putalpha(mask)
 
         final = Image.new("RGBA", (1024, 1024))
-        final.paste(avatar, (0, 0), avatar)
+        final.paste(avatar, pos, avatar)
         final.paste(frame_img, (0, 0), frame_img)
 
         final.save(output_buffer, format="PNG")
@@ -87,7 +102,6 @@ async def test(bot: discord.Client, user: discord.User):
     # =========================
     # SUBIR A DISCORD
     # =========================
-
     channel = bot.get_channel(CHANNEL_ID)
 
     if not channel:
