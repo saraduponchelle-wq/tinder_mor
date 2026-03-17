@@ -175,9 +175,9 @@ async def test(bot: discord.Client, user: discord.User, frame_name="princess"):
     size_bytes = output_buffer.getbuffer().nbytes
     print(f"📦 Tamaño final: {size_bytes / 1024:.2f} KB")
 
-    if size_bytes > 8_000_000:
+    if size_bytes > 20_000_000:
         print("❌ GIF demasiado grande tras procesado")
-        return "❌ El GIF es demasiado grande (máx 8MB)."
+        return "❌ El GIF es demasiado grande (máx 20MB)."
 
     # =========================
     # SUBIR A DISCORD
