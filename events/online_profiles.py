@@ -28,7 +28,6 @@ EMOJI_BOTON_HEART = discord.PartialEmoji.from_str("<a:heart:1477738562433581338>
 EMOJI_BOTON_BROKENHEART = discord.PartialEmoji.from_str("<:brokenheart:1477739060423299202>")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-PROFILE_CHANNEL_ID = int(os.getenv("PROFILE_CHANNEL_ID"))
 
 
 # ==========================================================
@@ -39,67 +38,32 @@ class LikeView(discord.ui.View):
 
     def __init__(self, bot, profile_data):
         super().__init__(timeout=None)
-
         self.bot = bot
         self.profile_data = profile_data
 
-    @discord.ui.button(
-        label="Like",
-        emoji=EMOJI_BOTON_HEART,
-        style=discord.ButtonStyle.success
-    )
+    @discord.ui.button(label="Like", emoji=EMOJI_BOTON_HEART, style=discord.ButtonStyle.success)
     async def like(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         target_id = self.profile_data["user_id"]
         author_id = interaction.user.id
 
-        # ------------------------------------------------
-        # NO DAR LIKE A UNO MISMO
-        # ------------------------------------------------
-
         if author_id == target_id:
-            await interaction.response.send_message(
-                "❌ No puedes darte like a ti mismo.",
-                ephemeral=True
-            )
+            await interaction.response.send_message("❌ No puedes darte like a ti mismo.", ephemeral=True)
             return
 
-        # ------------------------------------------------
-        # COMPROBAR PERFIL
-        # ------------------------------------------------
-
         conn = await asyncpg.connect(DATABASE_URL)
-
-        row = await conn.fetchrow(
-            "SELECT * FROM profiles WHERE user_id=$1",
-            author_id
-        )
-
+        row = await conn.fetchrow("SELECT * FROM profiles WHERE user_id=$1", author_id)
         await conn.close()
 
         if not row:
-            await interaction.response.send_message(
-                "❌ Necesitas crear un perfil primero.",
-                ephemeral=True
-            )
+            await interaction.response.send_message("❌ Necesitas crear un perfil primero.", ephemeral=True)
             return
-
-        # ------------------------------------------------
-        # COMPROBAR BLOQUEOS
-        # ------------------------------------------------
 
         liker_profile = dict(row)
 
         if target_id in (liker_profile.get("block") or []):
-            await interaction.response.send_message(
-                "🚫 Has bloqueado a este usuario.",
-                ephemeral=True
-            )
+            await interaction.response.send_message("🚫 Has bloqueado a este usuario.", ephemeral=True)
             return
-
-        # ------------------------------------------------
-        # AÑADIR MATCH / LIKE
-        # ------------------------------------------------
 
         already_match = await is_mutual_match(author_id, target_id)
 
@@ -112,32 +76,16 @@ class LikeView(discord.ui.View):
         profile1 = await get_full_profile(user1.id)
         profile2 = await get_full_profile(user2.id)
 
-        # ------------------------------------------------
-        # CASO 1: YA ERA MATCH → COUCOU
-        # ------------------------------------------------
-
         if already_match:
-
             await send_coucou(user2, user1)
             await add_popularity(target_id)
 
-        # ------------------------------------------------
-        # CASO 2: NUEVO MATCH
-        # ------------------------------------------------
-
         elif await is_mutual_match(author_id, target_id):
-
             await send_match(user1, profile2, user2)
             await send_match(user2, profile1, user1)
-
             await add_match_stat(user1.id, user2.id)
 
-        # ------------------------------------------------
-        # CASO 3: LIKE NORMAL
-        # ------------------------------------------------
-
         else:
-
             embed = create_profile_embed(profile1, user1)
             embed.title = "💌 A alguien le ha gustado tu perfil"
 
@@ -149,27 +97,19 @@ class LikeView(discord.ui.View):
             except Exception as e:
                 print(f"⚠️ No se pudo enviar DM: {e}")
 
-        await interaction.response.send_message(
-            "❤️ Like enviado.",
-            ephemeral=True
-        )
+        await interaction.response.send_message("❤️ Like enviado.", ephemeral=True)
 
     @discord.ui.button(label="Blogs", style=discord.ButtonStyle.primary)
     async def view_blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         user = await self.bot.fetch_user(self.profile_data["user_id"])
-
         profile_embed = create_profile_embed(self.profile_data, user)
 
         viewer = BlogViewer(user, profile_embed, self)
-
         await viewer.load()
 
         if not viewer.blogs:
-            await interaction.response.send_message(
-                "📭 Este usuario no tiene blogs.",
-                ephemeral=True
-            )
+            await interaction.response.send_message("📭 Este usuario no tiene blogs.", ephemeral=True)
             return
 
         await interaction.response.send_message(
@@ -189,32 +129,18 @@ class OnlineProfiles:
         self.bot = bot
         self.update_online_profiles.start()
 
-    # ------------------------------------------------
-    # RESET ACTIVE STATUS
-    # ------------------------------------------------
-
     async def reset_active(self, conn):
-
-        await conn.execute(
-            "UPDATE profiles SET active = FALSE"
-        )
-
-    # ------------------------------------------------
-    # UPDATE ACTIVE USERS
-    # ------------------------------------------------
+        await conn.execute("UPDATE profiles SET active = FALSE")
 
     async def update_active_users(self, conn):
 
         rows = await conn.fetch("SELECT user_id FROM profiles")
-
         active_ids = []
 
         for row in rows:
-
             user_id = row["user_id"]
 
             for guild in self.bot.guilds:
-
                 member = guild.get_member(user_id)
 
                 if member and member.status in (
@@ -226,96 +152,98 @@ class OnlineProfiles:
                     break
 
         if active_ids:
-
             await conn.execute(
                 "UPDATE profiles SET active = TRUE WHERE user_id = ANY($1)",
                 active_ids
             )
-    # ------------------------------------------------
+
+    # ==========================================================
     # MAIN LOOP
-    # ------------------------------------------------
+    # ==========================================================
 
     @tasks.loop(minutes=5)
     async def update_online_profiles(self):
 
-        print("🔄 Actualizando perfiles online...")
+        try:
+            print("🔄 Actualizando perfiles online...")
 
-        conn = await asyncpg.connect(DATABASE_URL)
+            conn = await asyncpg.connect(DATABASE_URL)
 
-        # 1️⃣ RESET ACTIVE
-        await self.reset_active(conn)
+            await self.reset_active(conn)
+            await self.update_active_users(conn)
 
-        # 2️⃣ DETECTAR USUARIOS ONLINE
-        await self.update_active_users(conn)
+            rows = await conn.fetch(
+                """
+                SELECT *
+                FROM profiles
+                WHERE active = TRUE
+                ORDER BY popularity DESC
+                """
+            )
 
-        # 3️⃣ OBTENER PERFILES ACTIVOS
-        rows = await conn.fetch(
-            """
-            SELECT *
-            FROM profiles
-            WHERE active = TRUE
-            ORDER BY popularity DESC
-            """
-        )
+            print(f"📊 Perfiles activos: {len(rows)}")
 
-        # 4️⃣ OBTENER SERVERS
-        servers = await get_all_servers()
+            servers = await get_all_servers()
 
-        for server in servers:
+            for server in servers:
 
-            channel_id = server["online_channel_id"]
+                channel_id = server["online_channel_id"]
 
-            if not channel_id:
-                continue
-
-            channel = self.bot.get_channel(channel_id)
-
-            if not channel:
-                continue
-
-            # limpiar canal
-            try:
-                await channel.purge()
-            except Exception as e:
-                print(f"⚠️ No se pudo limpiar canal {channel_id}: {e}")
-
-            # enviar perfiles
-            for row in rows:
-
-                profile = dict(row)
-
-                try:
-                    user = await self.bot.fetch_user(profile["user_id"])
-                except:
+                if not channel_id:
                     continue
 
-                embed = create_profile_embed(profile, user)
+                channel = self.bot.get_channel(channel_id)
 
-                view = LikeView(self.bot, profile)
+                if not channel:
+                    continue
 
+                # limpiar canal (limitado)
                 try:
-
-                    message = await channel.send(
-                        embed=embed,
-                        view=view
-                    )
-
-                    if channel.is_news():
-                        await message.publish()
-
-                    await asyncio.sleep(1)
-
+                    await channel.purge(limit=50)
                 except Exception as e:
+                    print(f"⚠️ No se pudo limpiar canal {channel_id}: {e}")
 
-                    print(f"❌ Error enviando perfil: {e}")
+                # enviar perfiles
+                for row in rows:
 
-        await conn.close()
+                    profile = dict(row)
 
-    # ------------------------------------------------
+                    print(f"➡️ Enviando perfil {profile['user_id']}")
+
+                    try:
+                        user = await self.bot.fetch_user(profile["user_id"])
+                    except Exception as e:
+                        print(f"⚠️ Error obteniendo usuario: {e}")
+                        continue
+
+                    embed = create_profile_embed(profile, user)
+                    view = LikeView(self.bot, profile)
+
+                    try:
+                        message = await channel.send(embed=embed, view=view)
+
+                        # ⚠️ publish protegido (puedes comentar si quieres)
+                        if channel.is_news():
+                            try:
+                                await message.publish()
+                            except Exception as e:
+                                print(f"⚠️ Error publicando: {e}")
+
+                        # 🔥 evitar rate limit
+                        await asyncio.sleep(3)
+
+                    except Exception as e:
+                        print(f"❌ Error enviando perfil: {e}")
+
+            await conn.close()
+
+        except Exception as e:
+            print(f"💥 ERROR EN LOOP: {e}")
+
+    # ==========================================================
     # START LOOP
-    # ------------------------------------------------
+    # ==========================================================
 
     @update_online_profiles.before_loop
     async def before_loop(self):
-
         await self.bot.wait_until_ready()
