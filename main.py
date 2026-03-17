@@ -59,8 +59,6 @@ async def on_message(message):
             "Quizás tu próximo **match** está más cerca de lo que crees 💖"
         )
 
-    await bot.process_commands(message)
-
 @bot.tree.command(name="help", description="Muestra todos los comandos del bot")
 async def help_command(interaction: discord.Interaction):
 
