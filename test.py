@@ -99,18 +99,3 @@ async def test(bot: discord.Client, user: discord.User):
     print("✅ Imagen subida:", msg.attachments[0].url)
 
     return msg.attachments[0].url
-
-
-from discord import app_commands
-
-@bot.tree.command(name="testpfp", description="Test imagen perfil con marco")
-async def testpfp(interaction: discord.Interaction):
-
-    await interaction.response.defer()  # evita "la aplicación no responde"
-
-    url = await test(bot, interaction.user)
-
-    await interaction.followup.send(
-        f"✅ Imagen generada:\n{url}",
-        ephemeral=True
-    )
