@@ -30,7 +30,6 @@ class MyBot(discord.Client):
         from src.blog import blog
         from src.blog_notifications import news
         from commands.set_channels import set_blogchannel, set_onlineusers
-        from test import test
 
         self.tree.add_command(blog)
         self.tree.add_command(start)
@@ -41,37 +40,6 @@ class MyBot(discord.Client):
         self.tree.add_command(news)
         self.tree.add_command(set_blogchannel)
         self.tree.add_command(set_onlineusers)
-
-        # ✅ comando test
-
-        @app_commands.command(name="testpfp", description="Test imagen perfil con marco")
-        async def testpfp(interaction: discord.Interaction):
-
-            # ✅ RESPONDER INMEDIATO (evita error 404)
-            await interaction.response.send_message(
-                "⏳ Generando imagen...",
-                ephemeral=True
-            )
-
-            try:
-                # 🔥 ejecutar función pesada
-                url = await test(interaction.client, interaction.user)
-
-                # ✅ responder después
-                await interaction.followup.send(
-                    f"✅ Imagen generada:\n{url}",
-                    ephemeral=True
-                )
-
-            except Exception as e:
-                print(f"❌ Error en testpfp: {e}")
-
-                await interaction.followup.send(
-                    "❌ Ocurrió un error generando la imagen.",
-                    ephemeral=True
-                )
-
-        self.tree.add_command(testpfp)
 
         await self.tree.sync()
         print("✅ Slash commands sincronizados")
