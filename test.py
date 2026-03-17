@@ -26,7 +26,7 @@ def crop_to_square(img: Image.Image) -> Image.Image:
 # =========================
 # FUNCIÓN PRINCIPAL
 # =========================
-async def test(bot: discord.Client, user: discord.User):
+async def test(bot: discord.Client, user: discord.User, frame_name="princess"):
 
     # =========================
     # OBTENER IMAGEN DESDE DB
@@ -76,7 +76,8 @@ async def test(bot: discord.Client, user: discord.User):
     # =========================
     # CARGAR MARCO
     # =========================
-    frame_img = Image.open("marcos/princess.png").convert("RGBA")
+    frame_path = f"marcos/{frame_name}.png"
+    frame_img = Image.open(frame_path).convert("RGBA")
     frame_img = frame_img.resize((1024, 1024))
 
     output_buffer = io.BytesIO()
