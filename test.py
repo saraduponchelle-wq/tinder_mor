@@ -74,13 +74,15 @@ async def test(bot: discord.Client, user: discord.User, frame_name="princess"):
     BASE_SIZE = 512
     frame = frame.resize((BASE_SIZE, BASE_SIZE))
 
-    AVATAR_SIZE = int(BASE_SIZE * 0.8)
+    # 🔥 ligeramente más pequeño para evitar peso alto
+    AVATAR_SIZE = int(BASE_SIZE * 0.75)
+
     pos = ((BASE_SIZE - AVATAR_SIZE) // 2, (BASE_SIZE - AVATAR_SIZE) // 2)
 
     output_buffer = io.BytesIO()
 
     # =========================
-    # GIF (FIDELIDAD TOTAL)
+    # GIF
     # =========================
     if is_gif:
 
@@ -107,15 +109,14 @@ async def test(bot: discord.Client, user: discord.User, frame_name="princess"):
 
             frames.append(final)
 
-            # ✅ duración REAL por frame (desde el GIF original)
-            try:
-                duration = avatar.info.get("duration", 80)
-                if "duration" in frame_gif.info:
-                    duration = frame_gif.info["duration"]
-            except:
-                duration = 80
-
+            # duración real por frame
+            duration = frame_gif.info.get("duration", avatar.info.get("duration", 80))
             durations.append(duration)
+
+            # 🔥 protección contra GIFs enormes
+            if len(frames) > 100:
+                print("❌ Demasiados frames")
+                return "❌ El GIF tiene demasiados frames."
 
         try:
             frames[0].save(
@@ -125,8 +126,10 @@ async def test(bot: discord.Client, user: discord.User, frame_name="princess"):
                 append_images=frames[1:],
                 duration=durations,
                 loop=avatar.info.get("loop", 0),
-                disposal=2
+                disposal=2,
+                optimize=True  # 🔥 CLAVE PARA NO EXPLOTAR EL PESO
             )
+
             filename = "profile.gif"
 
         except Exception as e:
@@ -167,10 +170,13 @@ async def test(bot: discord.Client, user: discord.User, frame_name="princess"):
     output_buffer.seek(0)
 
     # =========================
-    # CONTROL DE TAMAÑO
+    # CONTROL DE TAMAÑO REAL
     # =========================
-    if output_buffer.getbuffer().nbytes > 8_000_000:
-        print("❌ GIF demasiado grande")
+    size_bytes = output_buffer.getbuffer().nbytes
+    print(f"📦 Tamaño final: {size_bytes / 1024:.2f} KB")
+
+    if size_bytes > 8_000_000:
+        print("❌ GIF demasiado grande tras procesado")
         return "❌ El GIF es demasiado grande (máx 8MB)."
 
     # =========================
