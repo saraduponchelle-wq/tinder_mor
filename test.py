@@ -3,7 +3,7 @@ from PIL import Image, ImageDraw, ImageSequence
 import aiohttp
 import io
 
-from src.profile_db import get_profile  # 🔥 IMPORTANTE
+from src.tinder import get_full_profile
 
 CHANNEL_ID = 1483534237838741657
 
@@ -12,7 +12,7 @@ async def test(bot: discord.Client, user: discord.User):
     # =========================
     # OBTENER IMAGEN DESDE DB
     # =========================
-    profile = await get_profile(user.id)
+    profile = await get_full_profile(user.id)
 
     avatar_url = profile["profile_image"]
 
