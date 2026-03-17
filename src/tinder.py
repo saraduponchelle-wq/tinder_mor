@@ -31,7 +31,7 @@ async def get_profiles(exclude_user_id: int):
     rows = await conn.fetch("""
         SELECT user_id, name, interests, lines, description, matches,
                profile_image, banner_image,
-               likes, matches_nb, popularity, active
+               likes, matches_nb, popularity, active, framed_profile_image
         FROM profiles
         WHERE user_id != $1
         AND NOT ($1 = ANY(block))
