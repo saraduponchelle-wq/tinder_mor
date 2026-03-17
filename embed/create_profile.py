@@ -44,12 +44,18 @@ def create_profile_embed(profile_data: dict, discord_user: discord.User, show_di
         inline=False
     )
 
-    # ---------------- IMÁGENES ----------------
+    # ==========================================================
+    # 🔥 IMAGEN INTELIGENTE (CON MARCO)
+    # ==========================================================
 
+    framed_image = profile_data.get("framed_profile_image")
     profile_image = profile_data.get("profile_image")
     banner_image = profile_data.get("banner_image")
 
-    if profile_image:
+    # prioridad: marco > normal > avatar
+    if framed_image:
+        embed.set_thumbnail(url=framed_image)
+    elif profile_image:
         embed.set_thumbnail(url=profile_image)
     else:
         embed.set_thumbnail(url=discord_user.display_avatar.url)

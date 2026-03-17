@@ -65,34 +65,67 @@ class ImageModal(discord.ui.Modal, title="Actualizar imágenes"):
 # ==========================================================
 
 class FrameSelect(discord.ui.Select):
-
+    
     def __init__(self, frames: list[str]):
-
+    
         options = [
+            discord.SelectOption(
+                label="❌ Sin marco (usar imagen normal)",
+                value="default"
+            )
+        ]
+    
+        # añadir marcos del usuario
+        options += [
             discord.SelectOption(label=frame, value=frame)
             for frame in frames
         ]
-
+    
         super().__init__(
             placeholder="Selecciona un marco",
             options=options
         )
-
+    
     async def callback(self, interaction: discord.Interaction):
-
+    
         selected_frame = self.values[0]
-
+    
+        conn = await asyncpg.connect(DATABASE_URL)
+    
+        # ======================================================
+        # ❌ QUITAR MARCO
+        # ======================================================
+        if selected_frame == "default":
+    
+            await conn.execute(
+                """
+                UPDATE profiles
+                SET framed_profile_image = NULL
+                WHERE user_id = $1
+                """,
+                interaction.user.id
+            )
+    
+            await conn.close()
+    
+            await interaction.response.send_message(
+                "🖼️ Ahora estás usando tu imagen original.",
+                ephemeral=True
+            )
+    
+            return
+    
+        # ======================================================
+        # 🎨 APLICAR MARCO
+        # ======================================================
         await interaction.response.send_message(
             f"⏳ Aplicando marco `{selected_frame}`...",
             ephemeral=True
         )
-
-        # 🔥 generar imagen con marco
-        url = await test(interaction.client, interaction.user)
-
-        # 🔥 guardar en DB
-        conn = await asyncpg.connect(DATABASE_URL)
-
+    
+        # 🔥 IMPORTANTE: pasar el nombre del marco
+        url = await test(interaction.client, interaction.user, selected_frame)
+    
         await conn.execute(
             """
             UPDATE profiles
@@ -102,14 +135,13 @@ class FrameSelect(discord.ui.Select):
             url,
             interaction.user.id
         )
-
+    
         await conn.close()
-
+    
         await interaction.followup.send(
             f"✅ Marco aplicado correctamente:\n{url}",
             ephemeral=True
         )
-
 
 # ==========================================================
 # VIEW PRINCIPAL
