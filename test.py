@@ -114,7 +114,7 @@ async def test(bot: discord.Client, user: discord.User, frame_name="princess"):
             durations.append(duration)
 
             # 🔥 protección contra GIFs enormes
-            if len(frames) > 100:
+            if len(frames) > 200:
                 print("❌ Demasiados frames")
                 return "❌ El GIF tiene demasiados frames."
 
