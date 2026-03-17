@@ -43,22 +43,37 @@ class MyBot(discord.Client):
         self.tree.add_command(set_onlineusers)
 
         # ✅ comando test
+
         @app_commands.command(name="testpfp", description="Test imagen perfil con marco")
         async def testpfp(interaction: discord.Interaction):
 
-            await interaction.response.defer()
-
-            url = await test(self, interaction.user)
-
-            await interaction.followup.send(
-                f"✅ Imagen generada:\n{url}",
+            # ✅ RESPONDER INMEDIATO (evita error 404)
+            await interaction.response.send_message(
+                "⏳ Generando imagen...",
                 ephemeral=True
             )
+
+            try:
+                # 🔥 ejecutar función pesada
+                url = await test(interaction.client, interaction.user)
+
+                # ✅ responder después
+                await interaction.followup.send(
+                    f"✅ Imagen generada:\n{url}",
+                    ephemeral=True
+                )
+
+            except Exception as e:
+                print(f"❌ Error en testpfp: {e}")
+
+                await interaction.followup.send(
+                    "❌ Ocurrió un error generando la imagen.",
+                    ephemeral=True
+                )
 
         self.tree.add_command(testpfp)
 
         await self.tree.sync()
-        print("✅ Slash commands sincronizados")
         print("✅ Slash commands sincronizados")
 
 bot = MyBot()
