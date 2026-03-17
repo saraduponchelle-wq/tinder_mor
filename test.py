@@ -80,14 +80,14 @@ async def test(bot: discord.Client, user: discord.User, frame_name="princess"):
     output_buffer = io.BytesIO()
 
     # =========================
-    # GIF
+    # GIF (FIDELIDAD TOTAL)
     # =========================
     if is_gif:
 
         frames = []
         durations = []
 
-        for frame_gif in ImageSequence.Iterator(avatar):
+        for i, frame_gif in enumerate(ImageSequence.Iterator(avatar)):
 
             frame_gif = frame_gif.convert("RGBA")
 
@@ -107,8 +107,15 @@ async def test(bot: discord.Client, user: discord.User, frame_name="princess"):
 
             frames.append(final)
 
-            # ✅ mantener duración original
-            durations.append(frame_gif.info.get("duration", 80))
+            # ✅ duración REAL por frame (desde el GIF original)
+            try:
+                duration = avatar.info.get("duration", 80)
+                if "duration" in frame_gif.info:
+                    duration = frame_gif.info["duration"]
+            except:
+                duration = 80
+
+            durations.append(duration)
 
         try:
             frames[0].save(
@@ -117,8 +124,8 @@ async def test(bot: discord.Client, user: discord.User, frame_name="princess"):
                 save_all=True,
                 append_images=frames[1:],
                 duration=durations,
-                loop=0,
-                optimize=False
+                loop=avatar.info.get("loop", 0),
+                disposal=2
             )
             filename = "profile.gif"
 
@@ -164,7 +171,6 @@ async def test(bot: discord.Client, user: discord.User, frame_name="princess"):
     # =========================
     if output_buffer.getbuffer().nbytes > 8_000_000:
         print("❌ GIF demasiado grande")
-
         return "❌ El GIF es demasiado grande (máx 8MB)."
 
     # =========================
