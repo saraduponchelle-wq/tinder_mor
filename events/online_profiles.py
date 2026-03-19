@@ -65,10 +65,35 @@ class LikeView(discord.ui.View):
             await interaction.response.send_message("🚫 Has bloqueado a este usuario.", ephemeral=True)
             return
 
-        already_match = await is_mutual_match(author_id, target_id)
-
+        # guardar like primero
         await add_match(author_id, target_id)
         await add_like(target_id)
+
+        user1 = interaction.user
+        user2 = await self.bot.fetch_user(target_id)
+
+        profile1 = await get_full_profile(user1.id)
+        profile2 = await get_full_profile(user2.id)
+
+        # 🔥 comprobar match DESPUÉS
+        if await is_mutual_match(author_id, target_id):
+
+            await send_match(user1, profile2, user2)
+            await send_match(user2, profile1, user1)
+            await add_match_stat(user1.id, user2.id)
+
+        else:
+            # solo like normal
+            embed = create_profile_embed(profile1, user1)
+            embed.title = "💌 A alguien le ha gustado tu perfil"
+
+            try:
+                await user2.send(
+                    embed=embed,
+                    view=LikeBackView(author_id, profile1, user1)
+                )
+            except Exception as e:
+                print(f"⚠️ No se pudo enviar DM: {e}")
 
         user1 = interaction.user
         user2 = await self.bot.fetch_user(target_id)
