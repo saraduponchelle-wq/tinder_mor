@@ -160,12 +160,11 @@ async def test(bot: discord.Client, user: discord.User, frame_name="princess"):
 
         final.save(
             output_buffer,
-            format="JPEG",
-            quality=85,
+            format="PNG",
             optimize=True
         )
 
-        filename = "profile.jpg"
+        filename = "profile.png"
 
     output_buffer.seek(0)
 
