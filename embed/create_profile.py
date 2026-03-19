@@ -30,9 +30,19 @@ def create_profile_embed(profile_data: dict, discord_user: discord.User, show_di
 
     # ---------------- LÍNEAS ----------------
 
+    lines = profile_data.get("lines")
+
+    # asegurar que siempre sea lista
+    if isinstance(lines, list) and lines:
+        lines_value = ", ".join(lines)
+    elif isinstance(lines, str):
+        lines_value = lines
+    else:
+        lines_value = "No definido"
+
     embed.add_field(
-        name=f"{EMOJI_LINES} Líneas",
-        value=profile_data.get("lines") or "Sin líneas",
+        name=f"{EMOJI_LINES} Tipo de Rol",
+        value=lines_value,
         inline=False
     )
 
