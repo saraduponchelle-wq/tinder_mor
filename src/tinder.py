@@ -112,183 +112,224 @@ async def get_full_profile(user_id: int):
 class TinderView(discord.ui.View):
 
     def __init__(self, profiles, author_id):
-
         super().__init__(timeout=900)
-
         self.profiles = profiles
         self.index = 0
         self.author_id = author_id
-
+    
     async def interaction_check(self, interaction: discord.Interaction):
         return interaction.user.id == self.author_id
-
-    async def update_profile(self, interaction: discord.Interaction):
-
+    
+    # ==========================================================
+    # 🔥 BOTÓN DINÁMICO
+    # ==========================================================
+    async def update_like_button(self):
+    
         profile = self.profiles[self.index]
-
+    
+        target_id = profile["user_id"]
+        author_id = self.author_id
+    
+        button = None
+        for item in self.children:
+            if isinstance(item, discord.ui.Button):
+                if item.custom_id == "like_btn":
+                    button = item
+                    break
+    
+        if not button:
+            return
+    
+        # 🔥 CASO 1: YA SON MATCH
+        if await is_mutual_match(author_id, target_id):
+            button.label = "Coucou"
+            button.emoji = "💬"
+            button.style = discord.ButtonStyle.primary
+            return
+    
+        # 🔥 CASO 2: EL OTRO YA TE DIO LIKE
+        target_profile = await get_full_profile(target_id)
+    
+        if author_id in (target_profile.get("matches") or []):
+            button.label = "Hacer Match"
+            button.emoji = "💞"
+            button.style = discord.ButtonStyle.success
+            return
+    
+        # 🔥 CASO 3: NORMAL
+        button.label = "Like"
+        button.emoji = "❤️"
+        button.style = discord.ButtonStyle.success
+    
+    # ==========================================================
+    # ACTUALIZAR PERFIL
+    # ==========================================================
+    async def update_profile(self, interaction: discord.Interaction):
+    
+        profile = self.profiles[self.index]
         user = await interaction.client.fetch_user(profile["user_id"])
-
+    
         embed = create_profile_embed(profile, user)
-
+    
+        # 🔥 actualizar botón dinámico
+        await self.update_like_button()
+    
         await interaction.edit_original_response(
             embed=embed,
             view=self
         )
-
+    
     async def next_profile(self, interaction: discord.Interaction):
-
+    
         self.index += 1
-
+    
         if self.index >= len(self.profiles):
             self.index = 0
-
+    
         await self.update_profile(interaction)
-
-    @discord.ui.button(label="Pass", style=discord.ButtonStyle.danger, emoji=EMOJI_BOTON_BROKENHEART)
+    
+    # ==========================================================
+    # BOTONES
+    # ==========================================================
+    
+    @discord.ui.button(
+        label="Pass",
+        style=discord.ButtonStyle.danger,
+        emoji=EMOJI_BOTON_BROKENHEART
+    )
     async def pass_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-
+    
         await interaction.response.defer()
-
         await self.next_profile(interaction)
-
-    @discord.ui.button(label="Like", style=discord.ButtonStyle.success, emoji=EMOJI_BOTON_HEART)
+    
+    # 🔥 BOTÓN PRINCIPAL DINÁMICO
+    @discord.ui.button(
+        label="Like",
+        style=discord.ButtonStyle.success,
+        emoji="❤️",
+        custom_id="like_btn"
+    )
     async def like_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-            await interaction.response.defer()
-
-            profile = self.profiles[self.index]
-
-            target_id = profile["user_id"]
-            author_id = interaction.user.id
-
-            # ❌ evitar like a sí mismo
-            if target_id == author_id:
-                await interaction.followup.send("❌ No puedes darte like.", ephemeral=True)
-                return
-
-            # comprobar si ya era match
-            already_match = await is_mutual_match(author_id, target_id)
-
-            # registrar like
-            await add_match(author_id, target_id)
-            await add_like(target_id)
-
-            user1 = interaction.user
-            user2 = await interaction.client.fetch_user(target_id)
-
-            profile1 = await get_full_profile(user1.id)
-            profile2 = await get_full_profile(user2.id)
-
-            # =========================
-            # CASO 1: ya era match
-            # =========================
-            if already_match:
-
-                await send_coucou(user2, user1)
-                await add_popularity(target_id)
-
-            # =========================
-            # CASO 2: nuevo match
-            # =========================
-            elif await is_mutual_match(author_id, target_id):
-
-                await send_match(user1, profile2, user2)
-                await send_match(user2, profile1, user1)
-
-                await add_match_stat(user1.id, user2.id)
-
-            # =========================
-            # CASO 3: like normal
-            # =========================
-            else:
-
-                embed = create_profile_embed(profile1, user1)
-                embed.title = "💌 A alguien le ha gustado tu perfil"
-
-                try:
-                    await user2.send(
-                        embed=embed,
-                        view=LikeBackView(author_id, profile1, user1)
-                    )
-                except Exception as e:
-                    print(f"⚠️ No se pudo enviar DM: {e}")
-
-            await interaction.followup.send("❤️ Like enviado.", ephemeral=True)
-
-            # 👉 pasar al siguiente perfil
-            await self.next_profile(interaction)
-
+    
+        await interaction.response.defer()
+    
+        profile = self.profiles[self.index]
+    
+        target_id = profile["user_id"]
+        author_id = interaction.user.id
+    
+        if target_id == author_id:
+            await interaction.followup.send("❌ No puedes darte like.", ephemeral=True)
+            return
+    
+        # 🔥 registrar like SIEMPRE primero
+        await add_match(author_id, target_id)
+        await add_like(target_id)
+    
+        user1 = interaction.user
+        user2 = await interaction.client.fetch_user(target_id)
+    
+        profile1 = await get_full_profile(user1.id)
+        profile2 = await get_full_profile(user2.id)
+    
+        # ======================================================
+        # 🔥 MATCH
+        # ======================================================
+        if await is_mutual_match(author_id, target_id):
+    
+            await send_match(user1, profile2, user2)
+            await send_match(user2, profile1, user1)
+    
+            await add_match_stat(user1.id, user2.id)
+    
+        # ======================================================
+        # 🔥 LIKE NORMAL
+        # ======================================================
+        else:
+    
+            embed = create_profile_embed(profile1, user1)
+            embed.title = "💌 A alguien le ha gustado tu perfil"
+    
+            try:
+                await user2.send(
+                    embed=embed,
+                    view=LikeBackView(author_id, profile1, user1)
+                )
+            except Exception as e:
+                print(f"⚠️ No se pudo enviar DM: {e}")
+    
+        await interaction.followup.send("❤️ Acción enviada.", ephemeral=True)
+    
+        await self.next_profile(interaction)
+    
     @discord.ui.button(label="Atrás", style=discord.ButtonStyle.secondary)
     async def back_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-
+    
         await interaction.response.defer()
-
+    
         if self.index == 0:
             self.index = len(self.profiles) - 1
         else:
             self.index -= 1
-
+    
         await self.update_profile(interaction)
-
+    
     @discord.ui.button(label="Blogs", style=discord.ButtonStyle.primary)
     async def view_blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
-
+    
         profile = self.profiles[self.index]
-
         user = await interaction.client.fetch_user(profile["user_id"])
-
+    
         embed = create_profile_embed(profile, user)
-
+    
         viewer = BlogViewer(user, embed, self)
-
         await viewer.load()
-
+    
         if not viewer.blogs:
-
             await interaction.response.send_message(
                 "📭 Este usuario no tiene blogs.",
                 ephemeral=True
             )
-
             return
-
+    
         await interaction.response.edit_message(
             embed=viewer.create_embed(),
             view=viewer
         )
-
-
-# ==========================================================
-# COMMAND
-# ==========================================================
-
-async def tinder_callback(interaction: discord.Interaction):
-
-    await interaction.response.defer(ephemeral=True)
-
-    rows = await get_profiles(interaction.user.id)
-
-    if not rows:
+    
+    
+    # ==========================================================
+    # COMMAND
+    # ==========================================================
+    
+    async def tinder_callback(interaction: discord.Interaction):
+    
+        await interaction.response.defer(ephemeral=True)
+    
+        rows = await get_profiles(interaction.user.id)
+    
+        if not rows:
+            await interaction.followup.send(
+                "❌ No hay perfiles disponibles.",
+                ephemeral=True
+            )
+            return
+    
+        profiles = [dict(row) for row in rows]
+    
+        first = profiles[0]
+    
+        user = await interaction.client.fetch_user(first["user_id"])
+    
+        embed = create_profile_embed(first, user)
+    
+        view = TinderView(profiles, interaction.user.id)
+    
         await interaction.followup.send(
-            "❌ No hay perfiles disponibles.",
+            embed=embed,
+            view=view,
             ephemeral=True
         )
-        return
-
-    profiles = [dict(row) for row in rows]
-
-    first = profiles[0]
-
-    user = await interaction.client.fetch_user(first["user_id"])
-
-    embed = create_profile_embed(first, user)
-
-    view = TinderView(profiles, interaction.user.id)
-
-    await interaction.followup.send(
-        embed=embed,
-        view=view,
-        ephemeral=True
-    )
 
 
 tinder = app_commands.Command(
