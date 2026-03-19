@@ -296,41 +296,46 @@ class TinderView(discord.ui.View):
             embed=viewer.create_embed(),
             view=viewer
         )
-    
-    
-    # ==========================================================
-    # COMMAND
-    # ==========================================================
-    
-    async def tinder_callback(interaction: discord.Interaction):
-    
-        await interaction.response.defer(ephemeral=True)
-    
-        rows = await get_profiles(interaction.user.id)
-    
-        if not rows:
-            await interaction.followup.send(
-                "❌ No hay perfiles disponibles.",
-                ephemeral=True
-            )
-            return
-    
-        profiles = [dict(row) for row in rows]
-    
-        first = profiles[0]
-    
-        user = await interaction.client.fetch_user(first["user_id"])
-    
-        embed = create_profile_embed(first, user)
-    
-        view = TinderView(profiles, interaction.user.id)
-    
+
+# ==========================================================
+# COMMAND (FUERA DE LA CLASE)
+# ==========================================================
+
+async def tinder_callback(interaction: discord.Interaction):
+
+    await interaction.response.defer(ephemeral=True)
+
+    rows = await get_profiles(interaction.user.id)
+
+    if not rows:
         await interaction.followup.send(
-            embed=embed,
-            view=view,
+            "❌ No hay perfiles disponibles.",
             ephemeral=True
         )
+        return
 
+    profiles = [dict(row) for row in rows]
+
+    first = profiles[0]
+
+    user = await interaction.client.fetch_user(first["user_id"])
+
+    embed = create_profile_embed(first, user)
+
+    view = TinderView(profiles, interaction.user.id)
+
+    await interaction.followup.send(
+        embed=embed,
+        view=view,
+        ephemeral=True
+    )
+
+
+tinder = app_commands.Command(
+    name="tinder",
+    description="Muestra perfiles estilo Tinder",
+    callback=tinder_callback
+)
 
 tinder = app_commands.Command(
     name="tinder",
