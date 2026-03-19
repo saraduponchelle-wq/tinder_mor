@@ -124,39 +124,45 @@ class TinderView(discord.ui.View):
     # 🔥 BOTÓN DINÁMICO
     # ==========================================================
     async def update_like_button(self):
-    
+
         profile = self.profiles[self.index]
     
         target_id = profile["user_id"]
         author_id = self.author_id
     
-        button = None
-        for item in self.children:
-            if isinstance(item, discord.ui.Button):
-                if item.custom_id == "like_btn":
-                    button = item
-                    break
+        button = discord.utils.get(self.children, custom_id="like_btn")
     
         if not button:
             return
     
-        # 🔥 CASO 1: YA SON MATCH
-        if await is_mutual_match(author_id, target_id):
+        # 🔥 obtener ambos perfiles
+        author_profile = await get_full_profile(author_id)
+        target_profile = await get_full_profile(target_id)
+    
+        author_matches = author_profile.get("matches") or []
+        target_matches = target_profile.get("matches") or []
+    
+        # =========================
+        # 💬 YA MATCH (ambos)
+        # =========================
+        if target_id in author_matches and author_id in target_matches:
             button.label = "Coucou"
             button.emoji = "💬"
             button.style = discord.ButtonStyle.primary
             return
     
-        # 🔥 CASO 2: EL OTRO YA TE DIO LIKE
-        target_profile = await get_full_profile(target_id)
-    
-        if author_id in (target_profile.get("matches") or []):
+        # =========================
+        # 💞 TE DIO LIKE
+        # =========================
+        if author_id in target_matches:
             button.label = "Hacer Match"
             button.emoji = "💞"
             button.style = discord.ButtonStyle.success
             return
     
-        # 🔥 CASO 3: NORMAL
+        # =========================
+        # ❤️ NORMAL
+        # =========================
         button.label = "Like"
         button.emoji = "❤️"
         button.style = discord.ButtonStyle.success
@@ -324,18 +330,13 @@ async def tinder_callback(interaction: discord.Interaction):
 
     view = TinderView(profiles, interaction.user.id)
 
+    await view.update_like_button()
+
     await interaction.followup.send(
         embed=embed,
         view=view,
         ephemeral=True
     )
-
-
-tinder = app_commands.Command(
-    name="tinder",
-    description="Muestra perfiles estilo Tinder",
-    callback=tinder_callback
-)
 
 tinder = app_commands.Command(
     name="tinder",
