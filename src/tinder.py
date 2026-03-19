@@ -14,6 +14,17 @@ EMOJI_BROKENHEART = str(os.getenv("BROKENHEART"))
 EMOJI_BOTON_HEART = discord.PartialEmoji.from_str("<a:heart:1477738562433581338>")
 EMOJI_BOTON_BROKENHEART = discord.PartialEmoji.from_str("<:brokenheart:1477739060423299202>")
 
+from src.tinder_logic import (
+    add_like,
+    add_match,
+    add_match_stat,
+    add_popularity,
+    is_mutual_match,
+    send_match,
+    send_coucou,
+    LikeBackView
+)
+
 
 # ==========================================================
 # DATABASE
@@ -142,10 +153,69 @@ class TinderView(discord.ui.View):
 
     @discord.ui.button(label="Like", style=discord.ButtonStyle.success, emoji=EMOJI_BOTON_HEART)
     async def like_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await interaction.response.defer()
 
-        await interaction.response.defer()
+            profile = self.profiles[self.index]
 
-        await self.next_profile(interaction)
+            target_id = profile["user_id"]
+            author_id = interaction.user.id
+
+            # ❌ evitar like a sí mismo
+            if target_id == author_id:
+                await interaction.followup.send("❌ No puedes darte like.", ephemeral=True)
+                return
+
+            # comprobar si ya era match
+            already_match = await is_mutual_match(author_id, target_id)
+
+            # registrar like
+            await add_match(author_id, target_id)
+            await add_like(target_id)
+
+            user1 = interaction.user
+            user2 = await interaction.client.fetch_user(target_id)
+
+            profile1 = await get_full_profile(user1.id)
+            profile2 = await get_full_profile(user2.id)
+
+            # =========================
+            # CASO 1: ya era match
+            # =========================
+            if already_match:
+
+                await send_coucou(user2, user1)
+                await add_popularity(target_id)
+
+            # =========================
+            # CASO 2: nuevo match
+            # =========================
+            elif await is_mutual_match(author_id, target_id):
+
+                await send_match(user1, profile2, user2)
+                await send_match(user2, profile1, user1)
+
+                await add_match_stat(user1.id, user2.id)
+
+            # =========================
+            # CASO 3: like normal
+            # =========================
+            else:
+
+                embed = create_profile_embed(profile1, user1)
+                embed.title = "💌 A alguien le ha gustado tu perfil"
+
+                try:
+                    await user2.send(
+                        embed=embed,
+                        view=LikeBackView(author_id, profile1, user1)
+                    )
+                except Exception as e:
+                    print(f"⚠️ No se pudo enviar DM: {e}")
+
+            await interaction.followup.send("❤️ Like enviado.", ephemeral=True)
+
+            # 👉 pasar al siguiente perfil
+            await self.next_profile(interaction)
 
     @discord.ui.button(label="Atrás", style=discord.ButtonStyle.secondary)
     async def back_button(self, interaction: discord.Interaction, button: discord.ui.Button):
