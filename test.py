@@ -193,8 +193,18 @@ async def test(bot: discord.Client, user: discord.User, frame_name="princess"):
             file=discord.File(output_buffer, filename=filename)
         )
 
-    except discord.HTTPException:
-        return "❌ El GIF es demasiado grande para Discord."
+    except discord.HTTPException as e:
+        print(f"❌ Error subiendo imagen: {e}")
+
+        if e.status == 413:
+            return "❌ El archivo supera el límite de Discord."
+
+        return "❌ Error subiendo la imagen."
+
+    except Exception as e:
+        print(f"❌ Error inesperado: {e}")
+        return "❌ Error inesperado al subir la imagen."
+
 
     url = msg.attachments[0].url
     print("✅ Imagen subida:", url)
