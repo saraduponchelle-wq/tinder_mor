@@ -156,8 +156,6 @@ async def test(bot: discord.Client, user: discord.User, frame_name="princess"):
         final.paste(avatar, pos, avatar)
         final.paste(frame, (0, 0), frame)
 
-        final = final.convert("RGB")
-
         final.save(
             output_buffer,
             format="PNG",
