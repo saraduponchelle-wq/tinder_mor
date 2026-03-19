@@ -101,6 +101,20 @@ async def get_profiles(exclude_user_id: int):
     return rows
 
 
+async def get_full_profile(user_id: int):
+
+    conn = await get_connection()
+
+    row = await conn.fetchrow(
+        "SELECT * FROM profiles WHERE user_id=$1",
+        user_id
+    )
+
+    await conn.close()
+
+    return dict(row)
+
+
 # ==========================================================
 # TINDER VIEW
 # ==========================================================
