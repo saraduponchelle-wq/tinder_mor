@@ -30,6 +30,12 @@ class ImageModal(discord.ui.Modal, title="Actualizar imágenes"):
 
     async def on_submit(self, interaction: discord.Interaction):
 
+        # ✅ RESPONDER INMEDIATO (MUY IMPORTANTE)
+        await interaction.response.send_message(
+            "⏳ Procesando imágenes...",
+            ephemeral=True
+        )
+
         conn = await asyncpg.connect(DATABASE_URL)
 
         row = await conn.fetchrow(
@@ -52,7 +58,7 @@ class ImageModal(discord.ui.Modal, title="Actualizar imágenes"):
             interaction.user.id
         )
 
-        # 🔥 aplicar marco default automáticamente
+        # 🔥 PROCESO PESADO DESPUÉS
         try:
             url = await test(interaction.client, interaction.user, "default")
 
@@ -67,15 +73,21 @@ class ImageModal(discord.ui.Modal, title="Actualizar imágenes"):
                     interaction.user.id
                 )
             else:
-                print(f"⚠️ Error generando marco default: {url}")
+                await interaction.followup.send(
+                    url or "❌ Error generando marco.",
+                    ephemeral=True
+                )
+                await conn.close()
+                return
 
         except Exception as e:
             print(f"⚠️ Error aplicando marco default: {e}")
 
         await conn.close()
 
-        await interaction.response.send_message(
-            "✅ Imágenes actualizadas.",
+        # ✅ USAR FOLLOWUP (NO response)
+        await interaction.followup.send(
+            "✅ Imágenes actualizadas correctamente.",
             ephemeral=True
         )
 
