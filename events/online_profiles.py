@@ -118,6 +118,57 @@ class LikeView(discord.ui.View):
             ephemeral=True
         )
 
+    @discord.ui.button(label="Desbloquear", style=discord.ButtonStyle.secondary, emoji="🔓")
+    async def unblock(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+            author_id = interaction.user.id
+            target_id = self.profile_data["user_id"]
+
+            conn = await asyncpg.connect(DATABASE_URL)
+
+            # obtener lista de bloqueados
+            row = await conn.fetchrow(
+                "SELECT block FROM profiles WHERE user_id=$1",
+                author_id
+            )
+
+            if not row:
+                await conn.close()
+                await interaction.response.send_message(
+                    "❌ No tienes perfil.",
+                    ephemeral=True
+                )
+                return
+
+            blocked = row["block"] or []
+
+            # ❌ no está bloqueado
+            if target_id not in blocked:
+                await conn.close()
+                await interaction.response.send_message(
+                    "ℹ️ Este usuario no está bloqueado.",
+                    ephemeral=True
+                )
+                return
+
+            # ✅ eliminar del array
+            await conn.execute(
+                """
+                UPDATE profiles
+                SET block = array_remove(block, $1)
+                WHERE user_id = $2
+                """,
+                target_id,
+                author_id
+            )
+
+            await conn.close()
+
+            await interaction.response.send_message(
+                "🔓 Usuario desbloqueado correctamente.",
+                ephemeral=True
+            )
+
 
 # ==========================================================
 # ONLINE PROFILE SYSTEM
