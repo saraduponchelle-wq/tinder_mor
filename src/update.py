@@ -4,7 +4,7 @@ import asyncpg
 import os
 
 from src.start import ProfileModal, StartView
-from test import test  # 🔥 usamos tu generador
+from test import test
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -52,6 +52,26 @@ class ImageModal(discord.ui.Modal, title="Actualizar imágenes"):
             interaction.user.id
         )
 
+        # 🔥 aplicar marco default automáticamente
+        try:
+            url = await test(interaction.client, interaction.user, "default")
+
+            if url and not str(url).startswith("❌"):
+                await conn.execute(
+                    """
+                    UPDATE profiles
+                    SET framed_profile_image = $1
+                    WHERE user_id = $2
+                    """,
+                    url,
+                    interaction.user.id
+                )
+            else:
+                print(f"⚠️ Error generando marco default: {url}")
+
+        except Exception as e:
+            print(f"⚠️ Error aplicando marco default: {e}")
+
         await conn.close()
 
         await interaction.response.send_message(
@@ -65,67 +85,49 @@ class ImageModal(discord.ui.Modal, title="Actualizar imágenes"):
 # ==========================================================
 
 class FrameSelect(discord.ui.Select):
-    
+
     def __init__(self, frames: list[str]):
-    
+
         options = [
             discord.SelectOption(
-                label="❌ Sin marco (usar imagen normal)",
+                label="🖼️ Default",
                 value="default"
             )
         ]
-    
-        # añadir marcos del usuario
+
+        # evitar duplicar default
         options += [
             discord.SelectOption(label=frame, value=frame)
-            for frame in frames
+            for frame in frames if frame != "default"
         ]
-    
+
         super().__init__(
             placeholder="Selecciona un marco",
             options=options
         )
-    
+
     async def callback(self, interaction: discord.Interaction):
-    
+
         selected_frame = self.values[0]
-    
+
         conn = await asyncpg.connect(DATABASE_URL)
-    
-        # ======================================================
-        # ❌ QUITAR MARCO
-        # ======================================================
-        if selected_frame == "default":
-    
-            await conn.execute(
-                """
-                UPDATE profiles
-                SET framed_profile_image = NULL
-                WHERE user_id = $1
-                """,
-                interaction.user.id
-            )
-    
-            await conn.close()
-    
-            await interaction.response.send_message(
-                "🖼️ Ahora estás usando tu imagen original.",
-                ephemeral=True
-            )
-    
-            return
-    
-        # ======================================================
-        # 🎨 APLICAR MARCO
-        # ======================================================
+
         await interaction.response.send_message(
             f"⏳ Aplicando marco `{selected_frame}`...",
             ephemeral=True
         )
-    
-        # 🔥 IMPORTANTE: pasar el nombre del marco
+
         url = await test(interaction.client, interaction.user, selected_frame)
-    
+
+        # ❌ manejo de errores del generador
+        if not url or str(url).startswith("❌"):
+            await interaction.followup.send(
+                url or "❌ Error aplicando el marco.",
+                ephemeral=True
+            )
+            await conn.close()
+            return
+
         await conn.execute(
             """
             UPDATE profiles
@@ -135,13 +137,14 @@ class FrameSelect(discord.ui.Select):
             url,
             interaction.user.id
         )
-    
+
         await conn.close()
-    
+
         await interaction.followup.send(
-            f"✅ Marco aplicado correctamente:\n{url}",
+            "✅ Marco aplicado correctamente.",
             ephemeral=True
         )
+
 
 # ==========================================================
 # VIEW PRINCIPAL
@@ -153,7 +156,6 @@ class UpdateView(StartView):
         super().__init__(*args, **kwargs)
         self.frames = frames or []
 
-        # 🔥 añadir selector si tiene marcos
         if self.frames:
             self.add_item(FrameSelect(self.frames))
 
