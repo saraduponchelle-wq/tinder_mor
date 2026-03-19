@@ -38,7 +38,7 @@ class InterestSelect(discord.ui.Select):
 # SELECT: Lineas
 # ========================
 class LinesSelect(discord.ui.Select):
-    def __init__(self, default_value=None):
+    def __init__(self, default_values=None):
         options = [
             discord.SelectOption(label="Lemon"),
             discord.SelectOption(label="Romance"),
@@ -48,12 +48,23 @@ class LinesSelect(discord.ui.Select):
             discord.SelectOption(label="Aventura"),
             discord.SelectOption(label="Battle"),
         ]
-        super().__init__(placeholder="¿Tipo de Rol?", min_values=1, max_values=7, options=options)
-        if default_value:
-            self.default = default_value
+
+        super().__init__(
+            placeholder="¿Tipo de Rol?",
+            min_values=1,
+            max_values=7,
+            options=options
+        )
+
+        # ✅ marcar defaults correctamente
+        if default_values:
+            for option in self.options:
+                if option.label in default_values:
+                    option.default = True
 
     async def callback(self, interaction: discord.Interaction):
-        self.view.lines = self.values[0]
+        # 🔥 GUARDAR TODAS LAS SELECCIONES
+        self.view.lines = self.values
         await interaction.response.defer()
 
 
@@ -118,11 +129,12 @@ class ProfileModal(discord.ui.Modal, title="Crea tu perfil"):
 class StartView(discord.ui.View):
     def __init__(self, default_interests=None, default_lines=None):
         super().__init__(timeout=180)
+
         self.interests = default_interests or []
-        self.lines = default_lines
+        self.lines = default_lines or []  # 🔥 importante: lista
 
         self.add_item(InterestSelect(default_values=self.interests))
-        self.add_item(LinesSelect(default_value=self.lines))
+        self.add_item(LinesSelect(default_values=self.lines))
 
     @discord.ui.button(label="Crear Perfil", style=discord.ButtonStyle.green)
     async def create_profile(self, interaction: discord.Interaction, button: discord.ui.Button):
