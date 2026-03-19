@@ -40,12 +40,15 @@ class InterestSelect(discord.ui.Select):
 class LinesSelect(discord.ui.Select):
     def __init__(self, default_value=None):
         options = [
-            discord.SelectOption(label="Corto"),
-            discord.SelectOption(label="Medio"),
-            discord.SelectOption(label="Largo"),
-            discord.SelectOption(label="Biblias"),
+            discord.SelectOption(label="Lemon"),
+            discord.SelectOption(label="Romance"),
+            discord.SelectOption(label="BL"),
+            discord.SelectOption(label="GL"),
+            discord.SelectOption(label="Fantasia"),
+            discord.SelectOption(label="Aventura"),
+            discord.SelectOption(label="Battle"),
         ]
-        super().__init__(placeholder="¿Cuánto escribes?", min_values=1, max_values=1, options=options)
+        super().__init__(placeholder="¿Tipo de Rol?", min_values=1, max_values=7, options=options)
         if default_value:
             self.default = default_value
 

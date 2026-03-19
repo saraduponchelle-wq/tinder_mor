@@ -27,37 +27,78 @@ async def get_connection():
 async def get_profiles(exclude_user_id: int):
 
     conn = await get_connection()
-
+    
+    # =========================
+    # OBTENER PERFIL DEL USUARIO
+    # =========================
+    user_profile = await conn.fetchrow(
+        "SELECT interests, lines FROM profiles WHERE user_id = $1",
+        exclude_user_id
+    )
+    
+    if not user_profile:
+        await conn.close()
+        return []
+    
+    user_interests = user_profile["interests"] or []
+    user_lines = user_profile["lines"] or []
+    
+    # =========================
+    # QUERY CON PRIORIDADES
+    # =========================
     rows = await conn.fetch("""
-        SELECT user_id, name, interests, lines, description, matches,
-               profile_image, banner_image,
-               likes, matches_nb, popularity, active, framed_profile_image
+        SELECT *,
+    
+        -- 🔥 coincidencia de intereses
+        (
+            SELECT COUNT(*)
+            FROM unnest(COALESCE(interests, ARRAY[]::text[])) AS i
+            WHERE i = ANY($2)
+        ) AS interest_match,
+    
+        -- 🔥 coincidencia de líneas
+        (
+            SELECT COUNT(*)
+            FROM unnest(COALESCE(lines, ARRAY[]::text[])) AS l
+            WHERE l = ANY($3)
+        ) AS line_match
+    
         FROM profiles
+    
         WHERE user_id != $1
+    
+        -- bloqueos
         AND NOT ($1 = ANY(block))
         AND NOT (user_id = ANY(
             SELECT UNNEST(block) FROM profiles WHERE user_id = $1
         ))
-        ORDER BY active DESC, popularity DESC, matches DESC
-    """, exclude_user_id)
-
+    
+        ORDER BY
+            active DESC,                             -- 🟢 ONLINE PRIMERO
+    
+            -- 🔥 priorizar si tiene al menos 1 match (intereses o líneas)
+            (CASE 
+                WHEN (
+                    (SELECT COUNT(*) FROM unnest(COALESCE(interests, ARRAY[]::text[])) AS i WHERE i = ANY($2)) > 0
+                    OR
+                    (SELECT COUNT(*) FROM unnest(COALESCE(lines, ARRAY[]::text[])) AS l WHERE l = ANY($3)) > 0
+                )
+                THEN 1 ELSE 0
+            END) DESC,
+    
+            -- 🔥 cantidad de coincidencias (más matches arriba)
+            (interest_match + line_match) DESC,
+    
+            -- 🔥 popularidad
+            popularity DESC,
+    
+            -- 🔥 matches secundarios
+            matches DESC
+    """, exclude_user_id, user_interests, user_lines)
+    
     await conn.close()
-
+    
     return rows
-
-
-async def get_full_profile(user_id: int):
-
-    conn = await get_connection()
-
-    row = await conn.fetchrow(
-        "SELECT * FROM profiles WHERE user_id=$1",
-        user_id
-    )
-
-    await conn.close()
-
-    return dict(row)
 
 
 # ==========================================================
