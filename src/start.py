@@ -112,10 +112,15 @@ class ProfileModal(discord.ui.Modal, title="Crea tu perfil"):
             # =========================
             framed_url = None
 
-            try:
+            row_full = await conn.fetchrow(
+                "SELECT framed_profile_image FROM profiles WHERE user_id=$1",
+                interaction.user.id
+            )
+
+            if row_full and row_full["framed_profile_image"]:
+                framed_url = row_full["framed_profile_image"]
+            else:
                 framed_url = await test(interaction.client, interaction.user, "default")
-            except Exception as e:
-                print(f"⚠️ Error aplicando marco: {e}")
 
             # =========================
             # GUARDAR EN DB
