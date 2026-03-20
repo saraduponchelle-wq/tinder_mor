@@ -66,92 +66,98 @@ class LinesSelect(discord.ui.Select):
 # ========================
 class ProfileModal(discord.ui.Modal, title="Crea tu perfil"):
 
-    def __init__(self, interests, lines):
-        super().__init__()
+        def __init__(self, interests, lines, default_name="", default_description=""):
+            super().__init__()
 
-        self.interests = interests
-        self.lines = lines
+            self.interests = interests
+            self.lines = lines
 
-        self.name = discord.ui.TextInput(label="Nombre", max_length=50)
-        self.description = discord.ui.TextInput(
-            label="Descripción",
-            style=discord.TextStyle.paragraph,
-            max_length=500
-        )
+            self.name = discord.ui.TextInput(
+                label="Nombre",
+                max_length=50,
+                default=default_name  # ✅ añadido
+            )
 
-        self.add_item(self.name)
-        self.add_item(self.description)
+            self.description = discord.ui.TextInput(
+                label="Descripción",
+                style=discord.TextStyle.paragraph,
+                max_length=500,
+                default=default_description  # ✅ añadido
+            )
 
-    async def on_submit(self, interaction: discord.Interaction):
+            self.add_item(self.name)
+            self.add_item(self.description)
 
-        await interaction.response.send_message("⏳ Creando perfil...", ephemeral=True)
+        async def on_submit(self, interaction: discord.Interaction):
 
-        conn = await asyncpg.connect(DATABASE_URL)
+            await interaction.response.send_message("⏳ Creando perfil...", ephemeral=True)
 
-        # eliminar perfil anterior (embed viejo)
-        row = await conn.fetchrow(
-            "SELECT message_id FROM profiles WHERE user_id = $1",
-            interaction.user.id
-        )
+            conn = await asyncpg.connect(DATABASE_URL)
 
-        if row and row["message_id"]:
+            # eliminar perfil anterior (embed viejo)
+            row = await conn.fetchrow(
+                "SELECT message_id FROM profiles WHERE user_id = $1",
+                interaction.user.id
+            )
+
+            if row and row["message_id"]:
+                try:
+                    msg = await interaction.channel.fetch_message(row["message_id"])
+                    await msg.delete()
+                except:
+                    pass
+
+            # =========================
+            # 🔥 APLICAR MARCO DEFAULT
+            # =========================
+            framed_url = None
+
             try:
-                msg = await interaction.channel.fetch_message(row["message_id"])
-                await msg.delete()
-            except:
-                pass
+                framed_url = await test(interaction.client, interaction.user, "default")
+            except Exception as e:
+                print(f"⚠️ Error aplicando marco: {e}")
 
-        # =========================
-        # 🔥 APLICAR MARCO DEFAULT
-        # =========================
-        framed_url = None
+            # =========================
+            # GUARDAR EN DB
+            # =========================
+            await conn.execute("""
+                INSERT INTO profiles(user_id, name, interests, lines, description, framed_profile_image)
+                VALUES($1, $2, $3, $4, $5, $6)
+                ON CONFLICT (user_id)
+                DO UPDATE SET name=$2, interests=$3, lines=$4, description=$5, framed_profile_image=$6
+            """,
+                interaction.user.id,
+                self.name.value,
+                self.interests,
+                self.lines,
+                self.description.value,
+                framed_url
+            )
 
-        try:
-            framed_url = await test(interaction.client, interaction.user, "default")
-        except Exception as e:
-            print(f"⚠️ Error aplicando marco: {e}")
+            # =========================
+            # CREAR EMBED (TU SISTEMA)
+            # =========================
+            profile_data = {
+                "user_id": interaction.user.id,
+                "name": self.name.value,
+                "interests": self.interests,
+                "lines": self.lines,
+                "description": self.description.value,
+                "framed_profile_image": framed_url
+            }
 
-        # =========================
-        # GUARDAR EN DB
-        # =========================
-        await conn.execute("""
-            INSERT INTO profiles(user_id, name, interests, lines, description, framed_profile_image)
-            VALUES($1, $2, $3, $4, $5, $6)
-            ON CONFLICT (user_id)
-            DO UPDATE SET name=$2, interests=$3, lines=$4, description=$5, framed_profile_image=$6
-        """,
-            interaction.user.id,
-            self.name.value,
-            self.interests,
-            self.lines,
-            self.description.value,
-            framed_url
-        )
+            embed = create_profile_embed(profile_data, interaction.user)
 
-        # =========================
-        # CREAR EMBED (TU SISTEMA)
-        # =========================
-        profile_data = {
-            "user_id": interaction.user.id,
-            "name": self.name.value,
-            "interests": self.interests,
-            "lines": self.lines,
-            "description": self.description.value,
-            "framed_profile_image": framed_url
-        }
+            await interaction.followup.send(embed=embed)
+            message = await interaction.original_response()
 
-        embed = create_profile_embed(profile_data, interaction.user)
+            await conn.execute(
+                "UPDATE profiles SET message_id=$1 WHERE user_id=$2",
+                message.id,
+                interaction.user.id
+            )
 
-        sent = await interaction.followup.send(embed=embed)
-        message = await interaction.original_response()
-
-        await conn.execute(
-            "UPDATE profiles SET message_id=$1 WHERE user_id=$2",
-            message.id,
-            interaction.user.id
-        )
-
-        await conn.close()
+            await conn.close()
 
 
 # ========================
