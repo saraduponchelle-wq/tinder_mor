@@ -259,6 +259,10 @@ class BlogLikeView(discord.ui.View):
 async def post_blog_for_review(client, author, blog_text, image_url):
 
     channel = client.get_channel(BLOG_REVIEW_CHANNEL_ID)
+    
+    if not channel:
+        print("[ERROR] Canal de revisión no encontrado")
+        return
 
     embed = discord.Embed(
         title=f"{EMOJI_NOTI} Nuevo Blog de {author.display_name}",
@@ -311,14 +315,25 @@ class BlogTextModal(discord.ui.Modal, title="Escribe tu blog"):
 
     async def on_submit(self, interaction: discord.Interaction):
 
+        # ✅ RESPUESTA INMEDIATA
+        await interaction.response.send_message(
+            "⏳ Enviando blog para revisión...",
+            ephemeral=True
+        )
+    
+        # 🔥 PROCESO LENTO DESPUÉS
         await post_blog_for_review(
             interaction.client,
             self.author,
             self.blog_text_input.value,
             None
         )
-
-        await interaction.response.send_message("✅ Blog enviado.", ephemeral=True)
+    
+        # ✅ CONFIRMACIÓN FINAL
+        await interaction.followup.send(
+            "✅ Blog enviado correctamente.",
+            ephemeral=True
+        )
 
 
 async def crearblog_callback(interaction: discord.Interaction):
