@@ -8,6 +8,7 @@ import os
 from src.blog_db import add_blog
 from src.blog_notifications import get_users_with_news_enabled
 from src.server_db import get_all_servers
+from embed.create_profile import create_profile_embed
 
 BLOG_REVIEW_CHANNEL_ID = int(os.getenv("BLOG_REVIEW_CHANNEL_ID"))
 ADMIN_ROLE_ID = int(os.getenv("ADMIN_ROLE_ID"))
@@ -118,6 +119,9 @@ class BlogLikeView(discord.ui.View):
             return
 
         # 🔥 comprobar estado
+        # ======================================================
+        # 🔥 ESTADO
+        # ======================================================
         author_matches = profile_author.get("matches") or []
         user_matches = profile_user.get("matches") or []
 
@@ -127,83 +131,79 @@ class BlogLikeView(discord.ui.View):
 
         author_liked_user = user.id in author_matches
 
-        # ======================================================
-        # 💞 MATCH
-        # ======================================================
-        # ======================================================
-        # 💬 YA SON MATCH → SOLO MENSAJE
-        # ======================================================
-        if already_matched:
 
-            await interaction.response.send_message(
-                "💬 Ya tienes match con este usuario.",
-                ephemeral=True
-            )
+        # 🔥 SIEMPRE preparamos perfil
+        profile1 = await get_full_profile(user.id)
+        profile2 = await get_full_profile(author.id)
 
-            try:
-                await author.send(
-                    f"💖 A {user.mention} le sigue gustando tu blog."
-                )
-            except:
-                pass
-
-            return
+        embed = create_profile_embed(profile1, user)
+        embed.title = "💌 Interés en tu blog"
 
 
         # ======================================================
-        # 💞 HACER MATCH (él ya te dio like antes)
+        # 💞 CASO MATCH NUEVO
         # ======================================================
-        if author_liked_user:
+        if not already_matched and author_liked_user:
 
             await add_match(user.id, author.id)
-
-            profile1 = await get_full_profile(user.id)
-            profile2 = await get_full_profile(author.id)
 
             await send_match(user, profile2, author)
             await send_match(author, profile1, user)
 
             await add_match_stat(user.id, author.id)
 
-            try:
-                await author.send(
-                    f"💖 A {user.mention} le encantó tu blog y han hecho match!"
-                )
-            except:
-                pass
+            # mensaje especial
+            content_msg = f"💖 {user.mention} ha hecho match contigo y le encantó tu blog!"
 
             await interaction.response.send_message(
                 "💞 ¡Has hecho match!",
                 ephemeral=True
             )
 
-            return
+
+        # ======================================================
+        # 💬 YA ERAN MATCH
+        # ======================================================
+        elif already_matched:
+
+            await add_popularity(author.id)
+
+            content_msg = f"💖 {user.mention} ha vuelto a interesarse en tu blog."
+
+
+            await interaction.response.send_message(
+                "💬 Ya tienes match con este usuario.",
+                ephemeral=True
+            )
 
 
         # ======================================================
         # ❤️ LIKE NORMAL
         # ======================================================
-        await add_match(user.id, author.id)
-        await add_like(author.id)
+        else:
 
-        profile1 = await get_full_profile(user.id)
+            await add_match(user.id, author.id)
+            await add_like(author.id)
 
-        embed = create_profile_embed(profile1, user)
-        embed.title = "💌 A alguien le ha interesado tu blog"
+            content_msg = f"📢 {user.mention} está interesado en tu blog."
 
+            await interaction.response.send_message(
+                "❤️ Has mostrado interés en el blog.",
+                ephemeral=True
+            )
+
+
+        # ======================================================
+        # 📩 SIEMPRE ENVIAR DM (CLAVE)
+        # ======================================================
         try:
             await author.send(
-                content="📢 Este usuario está interesado en tu blog",
+                content=content_msg,
                 embed=embed,
                 view=BlogInterestView(user.id, profile1, user)
             )
         except Exception as e:
             print(f"[ERROR] DM blog like: {e}")
-
-        await interaction.response.send_message(
-            "❤️ Has mostrado interés en el blog.",
-            ephemeral=True
-        )
 
 # ===============================
 
