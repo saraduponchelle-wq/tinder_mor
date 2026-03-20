@@ -114,6 +114,66 @@ async def get_full_profile(user_id: int):
     return dict(row)
 
 
+class CoucouView(discord.ui.View):
+
+    def __init__(self, user_id: int, profile_data: dict, discord_user: discord.User):
+        super().__init__(timeout=604800)
+    
+        self.user_id = user_id
+        self.profile_data = profile_data
+        self.discord_user = discord_user
+    
+    # 📖 VER BLOGS
+    @discord.ui.button(label="Blogs", style=discord.ButtonStyle.primary)
+    async def view_blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
+    
+        from src.blog_viewer import BlogViewer
+        from embed.create_profile import create_profile_embed
+    
+        profile_embed = create_profile_embed(self.profile_data, self.discord_user)
+    
+        viewer = BlogViewer(self.discord_user, profile_embed, self)
+    
+        await viewer.load()
+    
+        if not viewer.blogs:
+            await interaction.response.send_message(
+                "📭 Este usuario no tiene blogs.",
+                ephemeral=True
+            )
+            return
+    
+        await interaction.response.send_message(
+            embed=viewer.create_embed(),
+            view=viewer,
+            ephemeral=True
+        )
+    
+    # 🚫 BLOQUEAR
+    @discord.ui.button(label="🚫 Bloquear", style=discord.ButtonStyle.secondary)
+    async def block(self, interaction: discord.Interaction, button: discord.ui.Button):
+    
+        conn = await get_connection()
+    
+        await conn.execute(
+            """
+            UPDATE profiles
+            SET block = array_append(block, $1)
+            WHERE user_id = $2
+            """,
+            self.user_id,
+            interaction.user.id
+        )
+    
+        await conn.close()
+    
+        await interaction.response.edit_message(
+            content="🚫 Usuario bloqueado.",
+            view=None
+        )
+
+
+
 import discord
 from embed.create_profile import create_profile_embed
 
@@ -140,7 +200,7 @@ async def send_coucou(user: discord.User, other_user: discord.User):
     try:
         await user.send(
             embed=embed,
-            view=LikeBackView(other_user.id, profile_data, other_user)  # 👈 reutilizas TODO
+            view=CoucouView(other_user.id, profile_data, other_user)
         )
     except Exception as e:
         print(f"⚠️ No se pudo enviar coucou: {e}")
