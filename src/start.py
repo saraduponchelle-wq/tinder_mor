@@ -4,18 +4,17 @@ import asyncpg
 import os
 
 from embed.create_profile import create_profile_embed
-from src.profile_frames import apply_default_frame  # 🔥 NUEVO (marco default)
+from test import test  # ✅ usamos tu generador real
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-EMOJI_GOLDNOTI = str(os.getenv("GOLDNOTI"))
+
+EMOJI_HEART = str(os.getenv("HEART"))
+EMOJI_NO = str(os.getenv("NO"))
 EMOJI_INTEREST = str(os.getenv("INTEREST"))
 EMOJI_LINES = str(os.getenv("LINES"))
 EMOJI_STAR = str(os.getenv("STAR"))
-EMOJI_HEART = str(os.getenv("HEART"))
-EMOJI_BROKENHEART = str(os.getenv("BROKENHEART"))
 EMOJI_FIRE = str(os.getenv("FIRE"))
-EMOJI_YES = str(os.getenv("YES"))
-EMOJI_NO = str(os.getenv("NO"))
+
 
 # ========================
 # SELECT: Intereses
@@ -29,8 +28,6 @@ class InterestSelect(discord.ui.Select):
             discord.SelectOption(label="Futas"),
         ]
         super().__init__(placeholder="¿Qué te interesa?", min_values=1, max_values=4, options=options)
-        if default_values:
-            self.default_values = default_values
 
     async def callback(self, interaction: discord.Interaction):
         self.view.interests = self.values
@@ -59,11 +56,6 @@ class LinesSelect(discord.ui.Select):
             options=options
         )
 
-        if default_values:
-            for option in self.options:
-                if option.label in default_values:
-                    option.default = True
-
     async def callback(self, interaction: discord.Interaction):
         self.view.lines = self.values
         await interaction.response.defer()
@@ -73,14 +65,18 @@ class LinesSelect(discord.ui.Select):
 # MODAL
 # ========================
 class ProfileModal(discord.ui.Modal, title="Crea tu perfil"):
-    def __init__(self, interests, lines, default_name="", default_description=""):
+
+    def __init__(self, interests, lines):
         super().__init__()
+
         self.interests = interests
         self.lines = lines
 
-        self.name = discord.ui.TextInput(label="Nombre", max_length=50, default=default_name)
+        self.name = discord.ui.TextInput(label="Nombre", max_length=50)
         self.description = discord.ui.TextInput(
-            label="Descripción", style=discord.TextStyle.paragraph, max_length=500, default=default_description
+            label="Descripción",
+            style=discord.TextStyle.paragraph,
+            max_length=500
         )
 
         self.add_item(self.name)
@@ -88,14 +84,16 @@ class ProfileModal(discord.ui.Modal, title="Crea tu perfil"):
 
     async def on_submit(self, interaction: discord.Interaction):
 
+        await interaction.response.send_message("⏳ Creando perfil...", ephemeral=True)
+
         conn = await asyncpg.connect(DATABASE_URL)
 
+        # eliminar perfil anterior (embed viejo)
         row = await conn.fetchrow(
             "SELECT message_id FROM profiles WHERE user_id = $1",
             interaction.user.id
         )
 
-        # borrar mensaje anterior
         if row and row["message_id"]:
             try:
                 msg = await interaction.channel.fetch_message(row["message_id"])
@@ -103,57 +101,75 @@ class ProfileModal(discord.ui.Modal, title="Crea tu perfil"):
             except:
                 pass
 
-        # 🔥 aplicar marco default
-        avatar_url = apply_default_frame(str(interaction.user.display_avatar.url))
+        # =========================
+        # 🔥 APLICAR MARCO DEFAULT
+        # =========================
+        framed_url = None
 
-        # 🔥 crear embed usando TU sistema
-        profile_data = {
-            "name": self.name.value,
-            "interests": self.interests,
-            "lines": self.lines,
-            "description": self.description.value,
-        }
+        try:
+            framed_url = await test(interaction.client, interaction.user, "default")
+        except Exception as e:
+            print(f"⚠️ Error aplicando marco: {e}")
 
-        embed = create_profile_embed(profile_data, interaction.user)
-        embed.set_thumbnail(url=avatar_url)
-
-        # enviar mensaje
-        await interaction.response.send_message(embed=embed)
-        sent_message = await interaction.original_response()
-
-        # guardar en DB
+        # =========================
+        # GUARDAR EN DB
+        # =========================
         await conn.execute("""
-            INSERT INTO profiles(user_id, name, interests, lines, description, message_id)
+            INSERT INTO profiles(user_id, name, interests, lines, description, framed_profile_image)
             VALUES($1, $2, $3, $4, $5, $6)
             ON CONFLICT (user_id)
-            DO UPDATE SET name = $2, interests = $3, lines = $4, description = $5, message_id = $6
+            DO UPDATE SET name=$2, interests=$3, lines=$4, description=$5, framed_profile_image=$6
         """,
             interaction.user.id,
             self.name.value,
             self.interests,
             self.lines,
             self.description.value,
-            sent_message.id
+            framed_url
+        )
+
+        # =========================
+        # CREAR EMBED (TU SISTEMA)
+        # =========================
+        profile_data = {
+            "user_id": interaction.user.id,
+            "name": self.name.value,
+            "interests": self.interests,
+            "lines": self.lines,
+            "description": self.description.value,
+            "framed_profile_image": framed_url
+        }
+
+        embed = create_profile_embed(profile_data, interaction.user)
+
+        sent = await interaction.followup.send(embed=embed)
+        message = await interaction.original_response()
+
+        await conn.execute(
+            "UPDATE profiles SET message_id=$1 WHERE user_id=$2",
+            message.id,
+            interaction.user.id
         )
 
         await conn.close()
 
 
 # ========================
-# VIEW PRINCIPAL
+# VIEW
 # ========================
 class StartView(discord.ui.View):
-    def __init__(self, default_interests=None, default_lines=None):
+    def __init__(self):
         super().__init__(timeout=180)
 
-        self.interests = default_interests or []
-        self.lines = default_lines or []
+        self.interests = []
+        self.lines = []
 
-        self.add_item(InterestSelect(default_values=self.interests))
-        self.add_item(LinesSelect(default_values=self.lines))
+        self.add_item(InterestSelect())
+        self.add_item(LinesSelect())
 
     @discord.ui.button(label="Crear Perfil", style=discord.ButtonStyle.green)
     async def create_profile(self, interaction: discord.Interaction, button: discord.ui.Button):
+
         if not self.interests or not self.lines:
             await interaction.response.send_message(
                 f"{EMOJI_NO} Debes seleccionar intereses y líneas primero.",
@@ -161,31 +177,35 @@ class StartView(discord.ui.View):
             )
             return
 
-        await interaction.response.send_modal(ProfileModal(self.interests, self.lines))
+        await interaction.response.send_modal(
+            ProfileModal(self.interests, self.lines)
+        )
 
 
 # ========================
-# SLASH COMMAND
+# COMMAND
 # ========================
 async def start_callback(interaction: discord.Interaction):
 
     conn = await asyncpg.connect(DATABASE_URL)
+
     row = await conn.fetchrow(
         "SELECT * FROM profiles WHERE user_id = $1",
         interaction.user.id
     )
+
     await conn.close()
 
     if row:
         await interaction.response.send_message(
-            f"{EMOJI_NO} Ya tienes un perfil creado. Usa `/update` para modificarlo.",
+            f"{EMOJI_NO} Ya tienes un perfil. Usa `/update`.",
             ephemeral=True
         )
         return
 
     embed = discord.Embed(
-        title=f"{EMOJI_HEART} Crea tu perfil Tinder Discord",
-        description="Selecciona tus preferencias y luego pulsa **Crear Perfil**.",
+        title=f"{EMOJI_HEART} Crea tu perfil",
+        description="Selecciona intereses y líneas, luego pulsa el botón.",
         color=discord.Color.pink()
     )
 
@@ -198,6 +218,6 @@ async def start_callback(interaction: discord.Interaction):
 
 start = app_commands.Command(
     name="start",
-    description="Crea tu perfil de Tinder Discord",
+    description="Crear perfil",
     callback=start_callback
 )
