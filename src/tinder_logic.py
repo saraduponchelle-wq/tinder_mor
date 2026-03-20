@@ -129,13 +129,21 @@ async def send_match(user: discord.User, profile_data: dict, other_user: discord
 
 async def send_coucou(user: discord.User, other_user: discord.User):
 
+    profile_data = await get_full_profile(other_user.id)
+    
     embed = discord.Embed(
         title="👋 Coucou",
         description=f"{other_user.mention} te saluda.",
         color=discord.Color.pink()
     )
-
-    await user.send(embed=embed)
+    
+    try:
+        await user.send(
+            embed=embed,
+            view=LikeBackView(other_user.id, profile_data, other_user)  # 👈 reutilizas TODO
+        )
+    except Exception as e:
+        print(f"⚠️ No se pudo enviar coucou: {e}")
 
 
 class LikeBackView(discord.ui.View):
