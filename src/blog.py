@@ -38,6 +38,62 @@ async def get_connection():
     return await asyncpg.connect(DATABASE_URL)
 
 
+class BlogImageButtonView(discord.ui.View):
+
+    def __init__(self, author: discord.User, blog_text: str):
+        super().__init__(timeout=None)
+        self.author = author
+        self.blog_text = blog_text
+    
+    @discord.ui.button(
+        label="Añadir imagen",
+        style=discord.ButtonStyle.primary
+    )
+    async def add_image(self, interaction: discord.Interaction, button: discord.ui.Button):
+    
+        if interaction.user.id != self.author.id:
+            await interaction.response.send_message(
+                f"{EMOJI_NO} Solo el autor puede usar este botón.",
+                ephemeral=True
+            )
+            return
+    
+        await interaction.response.send_modal(
+            BlogImageModal(self.author, self.blog_text)
+        )
+
+class BlogImageModal(discord.ui.Modal, title="Añadir URL de la imagen"):
+
+    image_url_input = discord.ui.TextInput(
+        label="URL de la imagen",
+        style=discord.TextStyle.short,
+        placeholder="https://ejemplo.com/imagen.png",
+        required=True,
+        max_length=2000
+    )
+    
+    def __init__(self, author: discord.User, blog_text: str):
+        super().__init__()
+        self.author = author
+        self.blog_text = blog_text
+    
+    async def on_submit(self, interaction: discord.Interaction):
+    
+        image_url = self.image_url_input.value.strip()
+    
+        await interaction.response.send_message(
+            f"{EMOJI_YES} Blog enviado para revisión.",
+            ephemeral=True
+        )
+    
+        await post_blog_for_review(
+            interaction.client,
+            self.author,
+            self.blog_text,
+            image_url
+        )
+
+
 # ==========================================================
 # VIEW INTERÉS (DM AL AUTOR)
 # ==========================================================
@@ -305,33 +361,24 @@ class BlogTextModal(discord.ui.Modal, title="Escribe tu blog"):
     blog_text_input = discord.ui.TextInput(
         label="Texto del blog",
         style=discord.TextStyle.paragraph,
+        placeholder="Escribe tu contenido aquí...",
         required=True,
         max_length=4000
     )
-
+    
     def __init__(self, author):
         super().__init__()
         self.author = author
-
+    
     async def on_submit(self, interaction: discord.Interaction):
-
-        # ✅ RESPUESTA INMEDIATA
+    
+        blog_text = self.blog_text_input.value.strip()
+    
+        view = BlogImageButtonView(self.author, blog_text)
+    
         await interaction.response.send_message(
-            "⏳ Enviando blog para revisión...",
-            ephemeral=True
-        )
-    
-        # 🔥 PROCESO LENTO DESPUÉS
-        await post_blog_for_review(
-            interaction.client,
-            self.author,
-            self.blog_text_input.value,
-            None
-        )
-    
-        # ✅ CONFIRMACIÓN FINAL
-        await interaction.followup.send(
-            "✅ Blog enviado correctamente.",
+            f"{EMOJI_YES} Texto recibido. ¿Quieres añadir una imagen?",
+            view=view,
             ephemeral=True
         )
 
