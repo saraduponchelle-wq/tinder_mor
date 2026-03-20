@@ -117,54 +117,65 @@ class BlogInterestView(discord.ui.View):
     # =========================
     def create_action_button(self):
 
+        # YA SON MATCH → solo interés
         if self.already_matched:
-            label = "💬 Coucou"
-            style = discord.ButtonStyle.primary
-            custom_id = "coucou"
-
+            label = "❤️ Me interesa"
+            style = discord.ButtonStyle.secondary
+            custom_id = "like"
+    
+        # TE DIO LIKE → puedes hacer match
         elif self.liked_you:
             label = "💞 Hacer Match"
             style = discord.ButtonStyle.success
             custom_id = "match"
-
+    
+        # NADA → interés normal
         else:
             label = "❤️ Me interesa"
             style = discord.ButtonStyle.secondary
             custom_id = "like"
-
-        button = discord.ui.Button(label=label, style=style, custom_id=custom_id)
-
+    
+        button = discord.ui.Button(label=label, style=style)
+    
         async def callback(interaction: discord.Interaction):
-
+    
             user = interaction.user
             other = self.discord_user
-
-            # 💬 COUCOU
-            if custom_id == "coucou":
-                await send_coucou(other, user)
-                await interaction.response.send_message("💬 Coucou enviado.", ephemeral=True)
-
+    
+            profile1 = await get_full_profile(user.id)
+            profile2 = await get_full_profile(other.id)
+    
             # 💞 MATCH
-            elif custom_id == "match":
+            if custom_id == "match":
+    
                 await add_match(user.id, self.liker_id)
-
-                profile1 = await get_full_profile(user.id)
-                profile2 = await get_full_profile(other.id)
-
+    
                 await send_match(user, profile2, other)
                 await send_match(other, profile1, user)
-
+    
                 await add_match_stat(user.id, other.id)
-
+    
                 await interaction.response.send_message("💞 ¡Match!", ephemeral=True)
-
+    
             # ❤️ LIKE
-            elif custom_id == "like":
+            else:
+    
                 await add_match(user.id, self.liker_id)
                 await add_like(self.liker_id)
-
-                await interaction.response.send_message("❤️ Has mostrado interés.", ephemeral=True)
-
+    
+                # 🔥 NOTIFICAR AL OTRO
+                try:
+                    embed = create_profile_embed(profile1, user)
+    
+                    await other.send(
+                        content=f"💌 {user.mention} está interesado en ti",
+                        embed=embed
+                    )
+                except:
+                    pass
+    
+                await interaction.response.send_message("❤️ Interés enviado.", ephemeral=True)
+    
         button.callback = callback
         return button
 
@@ -244,7 +255,7 @@ class BlogLikeView(discord.ui.View):
         user_matches = profile_user.get("matches") or []
 
         already_matched = author.id in user_matches and user.id in author_matches
-        author_liked_user = user.id in author_matches
+        author_liked_user = user.id in (profile_author.get("likes") or [])
 
         profile1 = await get_full_profile(user.id)
         profile2 = await get_full_profile(author.id)
@@ -255,6 +266,7 @@ class BlogLikeView(discord.ui.View):
         # =========================
         # MATCH NUEVO
         # =========================
+        # MATCH REAL
         if not already_matched and author_liked_user:
 
             await add_match(user.id, author.id)
@@ -352,6 +364,24 @@ async def post_blog_for_review(client, author, blog_text, image_url):
         view = BlogLikeView(author)
 
         await blog_channel.send(embed=embed, view=view)
+
+    user_ids = await get_users_with_news_enabled()
+
+    for user_id in user_ids:
+        try:
+            u = await client.fetch_user(user_id)
+
+            await u.send(
+                embed=embed,
+                view=BlogLikeView(author)
+            )
+
+            await u.send(
+                f"{EMOJI_MES} Si estás interesado, escríbele a {author.mention}"
+            )
+
+        except Exception as e:
+            print(f"[ERROR] No se pudo enviar DM {user_id}: {e}")
 
     await add_blog(author.id, blog_text, image_url or "nothing")
 
