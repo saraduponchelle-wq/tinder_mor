@@ -17,6 +17,109 @@ EMOJI_MES = str(os.getenv("MES"))
 EMOJI_YES = str(os.getenv("YES"))
 EMOJI_NO = str(os.getenv("NO"))
 
+from src.tinder_logic import (
+    add_match,
+    add_like,
+    add_match_stat,
+    is_mutual_match,
+    send_match,
+    LikeBackView
+)
+from src.tinder import get_full_profile  # o donde lo tengas
+
+
+class BlogLikeView(discord.ui.View):
+
+    def __init__(self, author: discord.User):
+        super().__init__(timeout=None)
+        self.author = author
+
+    @discord.ui.button(
+        label="❤️ Me interesa",
+        style=discord.ButtonStyle.success
+    )
+    async def like_blog(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        user = interaction.user
+        author = self.author
+
+        # ❌ no darte like a ti mismo
+        if user.id == author.id:
+            await interaction.response.send_message(
+                "❌ No puedes interactuar con tu propio blog.",
+                ephemeral=True
+            )
+            return
+
+        # 🔒 verificar bloqueos
+        profile_user = await get_full_profile(user.id)
+        profile_author = await get_full_profile(author.id)
+
+        if author.id in (profile_user.get("block") or []) or user.id in (profile_author.get("block") or []):
+            await interaction.response.send_message(
+                "🚫 No puedes interactuar con este usuario.",
+                ephemeral=True
+            )
+            return
+
+        # 🔥 comprobar estado
+        already_match = await is_mutual_match(user.id, author.id)
+
+        # ======================================================
+        # 💞 MATCH
+        # ======================================================
+        if already_match:
+
+            await add_match(user.id, author.id)
+
+            profile1 = await get_full_profile(user.id)
+            profile2 = await get_full_profile(author.id)
+
+            await send_match(user, profile2, author)
+            await send_match(author, profile1, user)
+
+            await add_match_stat(user.id, author.id)
+
+            # 💬 mensaje extra SOLO al autor
+            try:
+                await author.send(
+                    f"💖 A {user.mention} le encantó tu blog y han hecho match!"
+                )
+            except:
+                pass
+
+            await interaction.response.send_message(
+                "💞 ¡Has hecho match!",
+                ephemeral=True
+            )
+
+            return
+
+        # ======================================================
+        # ❤️ LIKE NORMAL
+        # ======================================================
+        await add_match(user.id, author.id)
+        await add_like(author.id)
+
+        profile1 = await get_full_profile(user.id)
+
+        embed = create_profile_embed(profile1, user)
+        embed.title = "💌 A alguien le ha interesado tu blog"
+
+        try:
+            await author.send(
+                content="📢 Este usuario está interesado en tu blog",
+                embed=embed,
+                view=LikeBackView(user.id, profile1, user)
+            )
+        except Exception as e:
+            print(f"[ERROR] DM blog like: {e}")
+
+        await interaction.response.send_message(
+            "❤️ Has mostrado interés en el blog.",
+            ephemeral=True
+        )
+
 # ===============================
 
 # ENVIAR BLOG A REVISIÓN
@@ -105,9 +208,12 @@ async def post_blog_for_review(
 
         try:
 
+            view = BlogLikeView(author)
+
             message = await blog_channel.send(
                 content=author.mention,
-                embed=embed
+                embed=embed,
+                view=view
             )
 
             if blog_channel.is_news():
@@ -125,7 +231,10 @@ async def post_blog_for_review(
 
             u = await client.fetch_user(user_id)
 
-            await u.send(embed=embed)
+            await u.send(
+                embed=embed,
+                view=BlogLikeView(author)
+            )
 
             await u.send(
                 f"{EMOJI_MES} Si estás interesado, escríbele a {author.mention}"
