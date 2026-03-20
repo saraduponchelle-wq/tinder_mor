@@ -27,7 +27,19 @@ class InterestSelect(discord.ui.Select):
             discord.SelectOption(label="Femboys"),
             discord.SelectOption(label="Futas"),
         ]
-        super().__init__(placeholder="¿Qué te interesa?", min_values=1, max_values=4, options=options)
+
+        super().__init__(
+            placeholder="¿Qué te interesa?",
+            min_values=1,
+            max_values=4,
+            options=options
+        )
+
+        # 🔥 aplicar valores por defecto
+        if default_values:
+            for option in self.options:
+                if option.label in default_values:
+                    option.default = True
 
     async def callback(self, interaction: discord.Interaction):
         self.view.interests = self.values
@@ -38,27 +50,33 @@ class InterestSelect(discord.ui.Select):
 # SELECT: Lineas
 # ========================
 class LinesSelect(discord.ui.Select):
-    def __init__(self, default_values=None):
-        options = [
-            discord.SelectOption(label="Lemon"),
-            discord.SelectOption(label="Romance"),
-            discord.SelectOption(label="BL"),
-            discord.SelectOption(label="GL"),
-            discord.SelectOption(label="Fantasia"),
-            discord.SelectOption(label="Aventura"),
-            discord.SelectOption(label="Battle"),
-        ]
+            def __init__(self, default_values=None):
+                options = [
+                    discord.SelectOption(label="Lemon"),
+                    discord.SelectOption(label="Romance"),
+                    discord.SelectOption(label="BL"),
+                    discord.SelectOption(label="GL"),
+                    discord.SelectOption(label="Fantasia"),
+                    discord.SelectOption(label="Aventura"),
+                    discord.SelectOption(label="Battle"),
+                ]
 
-        super().__init__(
-            placeholder="¿Tipo de Rol?",
-            min_values=1,
-            max_values=7,
-            options=options
-        )
+                super().__init__(
+                    placeholder="¿Tipo de Rol?",
+                    min_values=1,
+                    max_values=7,
+                    options=options
+                )
 
-    async def callback(self, interaction: discord.Interaction):
-        self.view.lines = self.values
-        await interaction.response.defer()
+                # 🔥 aplicar valores por defecto
+                if default_values:
+                    for option in self.options:
+                        if option.label in default_values:
+                            option.default = True
+
+            async def callback(self, interaction: discord.Interaction):
+                self.view.lines = self.values
+                await interaction.response.defer()
 
 
 # ========================
