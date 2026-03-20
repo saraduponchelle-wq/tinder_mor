@@ -111,6 +111,9 @@ async def get_full_profile(user_id: int):
 
     await conn.close()
 
+    if not row:
+        return None  # 🔥 clave
+
     return dict(row)
 
 
