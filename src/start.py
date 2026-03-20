@@ -158,14 +158,14 @@ class ProfileModal(discord.ui.Modal, title="Crea tu perfil"):
 # VIEW
 # ========================
 class StartView(discord.ui.View):
-    def __init__(self):
+    def __init__(self, default_interests=None, default_lines=None):
         super().__init__(timeout=180)
 
-        self.interests = []
-        self.lines = []
+        self.interests = default_interests or []
+        self.lines = default_lines or []
 
-        self.add_item(InterestSelect())
-        self.add_item(LinesSelect())
+        self.add_item(InterestSelect(default_values=self.interests))
+        self.add_item(LinesSelect(default_values=self.lines))
 
     @discord.ui.button(label="Crear Perfil", style=discord.ButtonStyle.green)
     async def create_profile(self, interaction: discord.Interaction, button: discord.ui.Button):
