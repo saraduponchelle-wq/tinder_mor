@@ -122,20 +122,18 @@ class BlogInterestView(discord.ui.View):
             label = "❤️ Me interesa"
             style = discord.ButtonStyle.secondary
             custom_id = "like"
-    
-        # TE DIO LIKE → puedes hacer match
+
         elif self.liked_you:
             label = "💞 Hacer Match"
             style = discord.ButtonStyle.success
             custom_id = "match"
-    
-        # NADA → interés normal
+
         else:
             label = "❤️ Me interesa"
             style = discord.ButtonStyle.secondary
             custom_id = "like"
     
-        button = discord.ui.Button(label=label, style=style)
+        button = discord.ui.Button(label=label, style=style, custom_id=custom_id)
     
         async def callback(interaction: discord.Interaction):
     
@@ -169,7 +167,14 @@ class BlogInterestView(discord.ui.View):
     
                     await other.send(
                         content=f"💌 {user.mention} está interesado en ti",
-                        embed=embed
+                        embed=embed,
+                        view=BlogInterestView(
+                            user.id,
+                            profile1,
+                            user,
+                            already_matched=False,
+                            liked_you=True
+                        )
                     )
                 except:
                     pass
@@ -255,7 +260,8 @@ class BlogLikeView(discord.ui.View):
         user_matches = profile_user.get("matches") or []
 
         already_matched = author.id in user_matches and user.id in author_matches
-        author_liked_user = user.id in (profile_author.get("likes") or [])
+        author_matches = profile_author.get("matches") or []
+        author_liked_user = user.id in author_matches
 
         profile1 = await get_full_profile(user.id)
         profile2 = await get_full_profile(author.id)
