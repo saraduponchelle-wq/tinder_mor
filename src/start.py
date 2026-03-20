@@ -110,35 +110,39 @@ class ProfileModal(discord.ui.Modal, title="Crea tu perfil"):
             # =========================
             # 🔥 APLICAR MARCO DEFAULT
             # =========================
-            framed_url = None
-
-            row_full = await conn.fetchrow(
-                "SELECT framed_profile_image FROM profiles WHERE user_id=$1",
-                interaction.user.id
-            )
-
-            if row_full and row_full["framed_profile_image"]:
-                framed_url = row_full["framed_profile_image"]
-            else:
-                framed_url = await test(interaction.client, interaction.user, "default")
-
-            # =========================
-            # GUARDAR EN DB
-            # =========================
+            # primero guardar SIN frame
             await conn.execute("""
-                INSERT INTO profiles(user_id, name, interests, lines, description, framed_profile_image)
-                VALUES($1, $2, $3, $4, $5, $6)
+                INSERT INTO profiles(user_id, name, interests, lines, description)
+                VALUES($1, $2, $3, $4, $5)
                 ON CONFLICT (user_id)
-                DO UPDATE SET name=$2, interests=$3, lines=$4, description=$5, framed_profile_image=$6
+                DO UPDATE SET name=$2, interests=$3, lines=$4, description=$5
             """,
                 interaction.user.id,
                 self.name.value,
                 self.interests,
                 self.lines,
-                self.description.value,
-                framed_url
+                self.description.value
             )
 
+            # 🔥 ahora sí puedes usar test()
+            framed_url = None
+
+            try:
+                framed_url = await test(interaction.client, interaction.user, "default")
+
+                if framed_url and not str(framed_url).startswith("❌"):
+                    await conn.execute(
+                        """
+                        UPDATE profiles
+                        SET framed_profile_image = $1
+                        WHERE user_id = $2
+                        """,
+                        framed_url,
+                        interaction.user.id
+                    )
+
+            except Exception as e:
+                print(f"⚠️ Error aplicando marco: {e}")
             # =========================
             # CREAR EMBED (TU SISTEMA)
             # =========================
