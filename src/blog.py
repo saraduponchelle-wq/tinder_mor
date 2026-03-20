@@ -28,6 +28,61 @@ from src.tinder_logic import (
 from src.tinder import get_full_profile  # o donde lo tengas
 
 
+class BlogInterestView(discord.ui.View):
+    
+    def __init__(self, liker_id: int, profile_data: dict, discord_user: discord.User):
+        super().__init__(timeout=604800)
+        self.liker_id = liker_id
+        self.profile_data = profile_data
+        self.discord_user = discord_user
+    
+    @discord.ui.button(label="Blogs", style=discord.ButtonStyle.primary)
+    async def view_blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
+    
+        from src.blog_viewer import BlogViewer
+        from embed.create_profile import create_profile_embed
+    
+        embed = create_profile_embed(self.profile_data, self.discord_user)
+    
+        viewer = BlogViewer(self.discord_user, embed, self)
+        await viewer.load()
+    
+        if not viewer.blogs:
+            await interaction.response.send_message(
+                "📭 Este usuario no tiene blogs.",
+                ephemeral=True
+            )
+            return
+    
+        await interaction.response.send_message(
+            embed=viewer.create_embed(),
+            view=viewer,
+            ephemeral=True
+        )
+    
+    @discord.ui.button(label="🚫 Bloquear", style=discord.ButtonStyle.secondary)
+    async def block(self, interaction: discord.Interaction, button: discord.ui.Button):
+    
+        conn = await get_connection()
+    
+        await conn.execute(
+            """
+            UPDATE profiles
+            SET block = array_append(block, $1)
+            WHERE user_id = $2
+            """,
+            self.liker_id,
+            interaction.user.id
+        )
+    
+        await conn.close()
+    
+        await interaction.response.edit_message(
+            content="🚫 Usuario bloqueado.",
+            view=None
+        )
+
+
 class BlogLikeView(discord.ui.View):
 
     def __init__(self, author: discord.User):
@@ -63,12 +118,42 @@ class BlogLikeView(discord.ui.View):
             return
 
         # 🔥 comprobar estado
-        already_match = await is_mutual_match(user.id, author.id)
+        author_matches = profile_author.get("matches") or []
+        user_matches = profile_user.get("matches") or []
+
+        already_matched = (
+            author.id in user_matches and user.id in author_matches
+        )
+
+        author_liked_user = user.id in author_matches
 
         # ======================================================
         # 💞 MATCH
         # ======================================================
-        if already_match:
+        # ======================================================
+        # 💬 YA SON MATCH → SOLO MENSAJE
+        # ======================================================
+        if already_matched:
+
+            await interaction.response.send_message(
+                "💬 Ya tienes match con este usuario.",
+                ephemeral=True
+            )
+
+            try:
+                await author.send(
+                    f"💖 A {user.mention} le sigue gustando tu blog."
+                )
+            except:
+                pass
+
+            return
+
+
+        # ======================================================
+        # 💞 HACER MATCH (él ya te dio like antes)
+        # ======================================================
+        if author_liked_user:
 
             await add_match(user.id, author.id)
 
@@ -80,7 +165,6 @@ class BlogLikeView(discord.ui.View):
 
             await add_match_stat(user.id, author.id)
 
-            # 💬 mensaje extra SOLO al autor
             try:
                 await author.send(
                     f"💖 A {user.mention} le encantó tu blog y han hecho match!"
@@ -94,6 +178,7 @@ class BlogLikeView(discord.ui.View):
             )
 
             return
+
 
         # ======================================================
         # ❤️ LIKE NORMAL
@@ -110,7 +195,7 @@ class BlogLikeView(discord.ui.View):
             await author.send(
                 content="📢 Este usuario está interesado en tu blog",
                 embed=embed,
-                view=LikeBackView(user.id, profile1, user)
+                view=BlogInterestView(user.id, profile1, user)
             )
         except Exception as e:
             print(f"[ERROR] DM blog like: {e}")
