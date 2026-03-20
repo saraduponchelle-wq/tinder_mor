@@ -3,6 +3,9 @@ from discord import app_commands
 import asyncpg
 import os
 
+from embed.create_profile import create_profile_embed
+from src.profile_frames import apply_default_frame  # 🔥 NUEVO (marco default)
+
 DATABASE_URL = os.getenv("DATABASE_URL")
 EMOJI_GOLDNOTI = str(os.getenv("GOLDNOTI"))
 EMOJI_INTEREST = str(os.getenv("INTEREST"))
@@ -56,14 +59,12 @@ class LinesSelect(discord.ui.Select):
             options=options
         )
 
-        # ✅ marcar defaults correctamente
         if default_values:
             for option in self.options:
                 if option.label in default_values:
                     option.default = True
 
     async def callback(self, interaction: discord.Interaction):
-        # 🔥 GUARDAR TODAS LAS SELECCIONES
         self.view.lines = self.values
         await interaction.response.defer()
 
@@ -86,13 +87,15 @@ class ProfileModal(discord.ui.Modal, title="Crea tu perfil"):
         self.add_item(self.description)
 
     async def on_submit(self, interaction: discord.Interaction):
-        DATABASE_URL = os.getenv("DATABASE_URL")
+
         conn = await asyncpg.connect(DATABASE_URL)
 
-        # Revisar si ya hay un perfil
-        row = await conn.fetchrow("SELECT message_id FROM profiles WHERE user_id = $1", interaction.user.id)
+        row = await conn.fetchrow(
+            "SELECT message_id FROM profiles WHERE user_id = $1",
+            interaction.user.id
+        )
 
-        # Borrar embed anterior si existe
+        # borrar mensaje anterior
         if row and row["message_id"]:
             try:
                 msg = await interaction.channel.fetch_message(row["message_id"])
@@ -100,25 +103,38 @@ class ProfileModal(discord.ui.Modal, title="Crea tu perfil"):
             except:
                 pass
 
-        # Crear embed
-        embed = discord.Embed(title=f"{EMOJI_HEART} Perfil creado", color=discord.Color.pink())
-        embed.add_field(name=f"{EMOJI_FIRE}Name", value=self.name.value, inline=False)
-        embed.add_field(name=f"{EMOJI_INTEREST}Intereses", value=", ".join(self.interests), inline=False)
-        embed.add_field(name=f"{EMOJI_LINES}Lineas", value=self.lines, inline=False)
-        embed.add_field(name=f"{EMOJI_STAR}BIO", value=self.description.value, inline=False)
-        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        # 🔥 aplicar marco default
+        avatar_url = apply_default_frame(str(interaction.user.display_avatar.url))
 
-        # Enviar mensaje
+        # 🔥 crear embed usando TU sistema
+        profile_data = {
+            "name": self.name.value,
+            "interests": self.interests,
+            "lines": self.lines,
+            "description": self.description.value,
+        }
+
+        embed = create_profile_embed(profile_data, interaction.user)
+        embed.set_thumbnail(url=avatar_url)
+
+        # enviar mensaje
         await interaction.response.send_message(embed=embed)
         sent_message = await interaction.original_response()
 
-        # Guardar en DB
+        # guardar en DB
         await conn.execute("""
             INSERT INTO profiles(user_id, name, interests, lines, description, message_id)
             VALUES($1, $2, $3, $4, $5, $6)
             ON CONFLICT (user_id)
             DO UPDATE SET name = $2, interests = $3, lines = $4, description = $5, message_id = $6
-        """, interaction.user.id, self.name.value, self.interests, self.lines, self.description.value, sent_message.id)
+        """,
+            interaction.user.id,
+            self.name.value,
+            self.interests,
+            self.lines,
+            self.description.value,
+            sent_message.id
+        )
 
         await conn.close()
 
@@ -131,7 +147,7 @@ class StartView(discord.ui.View):
         super().__init__(timeout=180)
 
         self.interests = default_interests or []
-        self.lines = default_lines or []  # 🔥 importante: lista
+        self.lines = default_lines or []
 
         self.add_item(InterestSelect(default_values=self.interests))
         self.add_item(LinesSelect(default_values=self.lines))
@@ -149,12 +165,15 @@ class StartView(discord.ui.View):
 
 
 # ========================
-# SLASH COMMAND EXPORTABLE
+# SLASH COMMAND
 # ========================
 async def start_callback(interaction: discord.Interaction):
-    DATABASE_URL = os.getenv("DATABASE_URL")
+
     conn = await asyncpg.connect(DATABASE_URL)
-    row = await conn.fetchrow("SELECT * FROM profiles WHERE user_id = $1", interaction.user.id)
+    row = await conn.fetchrow(
+        "SELECT * FROM profiles WHERE user_id = $1",
+        interaction.user.id
+    )
     await conn.close()
 
     if row:
@@ -169,7 +188,12 @@ async def start_callback(interaction: discord.Interaction):
         description="Selecciona tus preferencias y luego pulsa **Crear Perfil**.",
         color=discord.Color.pink()
     )
-    await interaction.response.send_message(embed=embed, view=StartView(), ephemeral=True)
+
+    await interaction.response.send_message(
+        embed=embed,
+        view=StartView(),
+        ephemeral=True
+    )
 
 
 start = app_commands.Command(
