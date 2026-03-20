@@ -209,6 +209,7 @@ class TinderView(discord.ui.View):
         await self.next_profile(interaction)
     
     # 🔥 BOTÓN PRINCIPAL DINÁMICO
+    # 🔥 BOTÓN PRINCIPAL DINÁMICO
     @discord.ui.button(
         label="Like",
         style=discord.ButtonStyle.success,
@@ -216,46 +217,77 @@ class TinderView(discord.ui.View):
         custom_id="like_btn"
     )
     async def like_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-    
+
         await interaction.response.defer()
-    
+
         profile = self.profiles[self.index]
-    
+
         target_id = profile["user_id"]
         author_id = interaction.user.id
-    
+
         if target_id == author_id:
             await interaction.followup.send("❌ No puedes darte like.", ephemeral=True)
             return
-    
-        # 🔥 registrar like SIEMPRE primero
-        await add_match(author_id, target_id)
-        await add_like(target_id)
-    
+
         user1 = interaction.user
         user2 = await interaction.client.fetch_user(target_id)
-    
-        profile1 = await get_full_profile(user1.id)
-        profile2 = await get_full_profile(user2.id)
-    
+
         # ======================================================
-        # 🔥 MATCH
+        # 🔥 OBTENER ESTADO REAL (ANTES DE TOCAR NADA)
         # ======================================================
-        if await is_mutual_match(author_id, target_id):
-    
+        author_profile = await get_full_profile(author_id)
+        target_profile = await get_full_profile(target_id)
+
+        author_matches = author_profile.get("matches") or []
+        target_matches = target_profile.get("matches") or []
+
+        already_matched = target_id in author_matches and author_id in target_matches
+        target_liked_you = author_id in target_matches
+
+        # ======================================================
+        # 💬 CASO 1: YA MATCH → COUCOU
+        # ======================================================
+        if already_matched:
+
+            await send_coucou(user2, user1)
+            await add_popularity(target_id)
+
+            await interaction.followup.send("💬 Coucou enviado.", ephemeral=True)
+            await self.next_profile(interaction)
+            return
+
+        # ======================================================
+        # 💞 CASO 2: HACER MATCH
+        # ======================================================
+        if target_liked_you:
+
+            # 👉 registrar like AQUÍ (no antes)
+            await add_match(author_id, target_id)
+            await add_like(target_id)
+
+            profile1 = await get_full_profile(user1.id)
+            profile2 = await get_full_profile(user2.id)
+
             await send_match(user1, profile2, user2)
             await send_match(user2, profile1, user1)
-    
+
             await add_match_stat(user1.id, user2.id)
-    
+
+            await interaction.followup.send("💞 ¡Match!", ephemeral=True)
+
         # ======================================================
-        # 🔥 LIKE NORMAL
+        # ❤️ CASO 3: LIKE NORMAL
         # ======================================================
         else:
-    
+
+            await add_match(author_id, target_id)
+            await add_like(target_id)
+
+            profile1 = await get_full_profile(user1.id)
+
             embed = create_profile_embed(profile1, user1)
             embed.title = "💌 A alguien le ha gustado tu perfil"
-    
+
             try:
                 await user2.send(
                     embed=embed,
@@ -263,9 +295,9 @@ class TinderView(discord.ui.View):
                 )
             except Exception as e:
                 print(f"⚠️ No se pudo enviar DM: {e}")
-    
-        await interaction.followup.send("❤️ Acción enviada.", ephemeral=True)
-    
+
+            await interaction.followup.send("❤️ Like enviado.", ephemeral=True)
+
         await self.next_profile(interaction)
     
     @discord.ui.button(label="Atrás", style=discord.ButtonStyle.secondary)
