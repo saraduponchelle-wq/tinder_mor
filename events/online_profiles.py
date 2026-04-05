@@ -466,7 +466,12 @@ class OnlineProfiles:
                     continue
 
                 if not channel.is_nsfw():
-                    print(f"⚠️ Canal {channel_id} no es NSFW, saltando...")
+                    try:
+                        await channel.send(
+                            "⚠️ Este canal debe ser marcado como **NSFW** para recibir este contenido."
+                        )
+                    except:
+                        pass
                     continue
 
                 try:

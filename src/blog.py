@@ -346,7 +346,12 @@ async def post_blog_for_review(client, author, blog_text, image_url):
 
         # 🔞 Solo publicar si el canal es NSFW
         if not getattr(blog_channel, "nsfw", False):
-            print(f"[WARN] Canal {channel_id} no es NSFW, se omite.")
+            try:
+                await channel.send(
+                    "⚠️ Este canal debe ser marcado como **NSFW** para recibir este contenido."
+                )
+            except:
+                pass
             continue
 
         view = BlogLikeView(author)
