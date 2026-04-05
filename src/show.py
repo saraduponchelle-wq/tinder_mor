@@ -6,6 +6,7 @@ from typing import Optional
 
 from src.blog_viewer import BlogViewer
 from embed.create_profile import create_profile_embed
+from src.nsfw_check import check_nsfw
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -44,6 +45,9 @@ class ProfileView(discord.ui.View):
 
 
 async def show_callback(interaction: discord.Interaction, user: Optional[discord.Member] = None):
+
+    if not await check_nsfw(interaction):
+        return
 
     target = user or interaction.user
 

@@ -4,7 +4,8 @@ import asyncpg
 import os
 
 from embed.create_profile import create_profile_embed
-from test import test  # ✅ usamos tu generador real
+from test import test
+from src.nsfw_check import check_nsfw
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -35,7 +36,6 @@ class InterestSelect(discord.ui.Select):
             options=options
         )
 
-        # 🔥 aplicar valores por defecto
         if default_values:
             for option in self.options:
                 if option.label in default_values:
@@ -50,33 +50,32 @@ class InterestSelect(discord.ui.Select):
 # SELECT: Lineas
 # ========================
 class LinesSelect(discord.ui.Select):
-            def __init__(self, default_values=None):
-                options = [
-                    discord.SelectOption(label="Lemon"),
-                    discord.SelectOption(label="Romance"),
-                    discord.SelectOption(label="BL"),
-                    discord.SelectOption(label="GL"),
-                    discord.SelectOption(label="Fantasia"),
-                    discord.SelectOption(label="Aventura"),
-                    discord.SelectOption(label="Battle"),
-                ]
+    def __init__(self, default_values=None):
+        options = [
+            discord.SelectOption(label="Lemon"),
+            discord.SelectOption(label="Romance"),
+            discord.SelectOption(label="BL"),
+            discord.SelectOption(label="GL"),
+            discord.SelectOption(label="Fantasia"),
+            discord.SelectOption(label="Aventura"),
+            discord.SelectOption(label="Battle"),
+        ]
 
-                super().__init__(
-                    placeholder="¿Tipo de Rol?",
-                    min_values=1,
-                    max_values=7,
-                    options=options
-                )
+        super().__init__(
+            placeholder="¿Tipo de Rol?",
+            min_values=1,
+            max_values=7,
+            options=options
+        )
 
-                # 🔥 aplicar valores por defecto
-                if default_values:
-                    for option in self.options:
-                        if option.label in default_values:
-                            option.default = True
+        if default_values:
+            for option in self.options:
+                if option.label in default_values:
+                    option.default = True
 
-            async def callback(self, interaction: discord.Interaction):
-                self.view.lines = self.values
-                await interaction.response.defer()
+    async def callback(self, interaction: discord.Interaction):
+        self.view.lines = self.values
+        await interaction.response.defer()
 
 
 # ========================
@@ -84,107 +83,95 @@ class LinesSelect(discord.ui.Select):
 # ========================
 class ProfileModal(discord.ui.Modal, title="Crea tu perfil"):
 
-        def __init__(self, interests, lines, default_name="", default_description=""):
-            super().__init__()
+    def __init__(self, interests, lines, default_name="", default_description=""):
+        super().__init__()
 
-            self.interests = interests
-            self.lines = lines
+        self.interests = interests
+        self.lines = lines
 
-            self.name = discord.ui.TextInput(
-                label="Nombre",
-                max_length=50,
-                default=default_name  # ✅ añadido
-            )
+        self.name = discord.ui.TextInput(
+            label="Nombre",
+            max_length=50,
+            default=default_name
+        )
 
-            self.description = discord.ui.TextInput(
-                label="Descripción",
-                style=discord.TextStyle.paragraph,
-                max_length=500,
-                default=default_description  # ✅ añadido
-            )
+        self.description = discord.ui.TextInput(
+            label="Descripción",
+            style=discord.TextStyle.paragraph,
+            max_length=500,
+            default=default_description
+        )
 
-            self.add_item(self.name)
-            self.add_item(self.description)
+        self.add_item(self.name)
+        self.add_item(self.description)
 
-        async def on_submit(self, interaction: discord.Interaction):
+    async def on_submit(self, interaction: discord.Interaction):
 
-            await interaction.response.send_message("⏳ Creando perfil...", ephemeral=True)
+        await interaction.response.send_message("⏳ Creando perfil...", ephemeral=True)
 
-            conn = await asyncpg.connect(DATABASE_URL)
+        conn = await asyncpg.connect(DATABASE_URL)
 
-            # eliminar perfil anterior (embed viejo)
-            row = await conn.fetchrow(
-                "SELECT message_id FROM profiles WHERE user_id = $1",
-                interaction.user.id
-            )
+        row = await conn.fetchrow(
+            "SELECT message_id FROM profiles WHERE user_id = $1",
+            interaction.user.id
+        )
 
-            if row and row["message_id"]:
-                try:
-                    msg = await interaction.channel.fetch_message(row["message_id"])
-                    await msg.delete()
-                except:
-                    pass
-
-            # =========================
-            # 🔥 APLICAR MARCO DEFAULT
-            # =========================
-            # primero guardar SIN frame
-            await conn.execute("""
-                INSERT INTO profiles(user_id, name, interests, lines, description)
-                VALUES($1, $2, $3, $4, $5)
-                ON CONFLICT (user_id)
-                DO UPDATE SET name=$2, interests=$3, lines=$4, description=$5
-            """,
-                interaction.user.id,
-                self.name.value,
-                self.interests,
-                self.lines,
-                self.description.value
-            )
-
-            # 🔥 ahora sí puedes usar test()
-            framed_url = None
-
+        if row and row["message_id"]:
             try:
-                framed_url = await test(interaction.client, interaction.user, "default")
+                msg = await interaction.channel.fetch_message(row["message_id"])
+                await msg.delete()
+            except:
+                pass
 
-                if framed_url and not str(framed_url).startswith("❌"):
-                    await conn.execute(
-                        """
-                        UPDATE profiles
-                        SET framed_profile_image = $1
-                        WHERE user_id = $2
-                        """,
-                        framed_url,
-                        interaction.user.id
-                    )
+        await conn.execute("""
+            INSERT INTO profiles(user_id, name, interests, lines, description)
+            VALUES($1, $2, $3, $4, $5)
+            ON CONFLICT (user_id)
+            DO UPDATE SET name=$2, interests=$3, lines=$4, description=$5
+        """,
+            interaction.user.id,
+            self.name.value,
+            self.interests,
+            self.lines,
+            self.description.value
+        )
 
-            except Exception as e:
-                print(f"⚠️ Error aplicando marco: {e}")
-            # =========================
-            # CREAR EMBED (TU SISTEMA)
-            # =========================
-            profile_data = {
-                "user_id": interaction.user.id,
-                "name": self.name.value,
-                "interests": self.interests,
-                "lines": self.lines,
-                "description": self.description.value,
-                "framed_profile_image": framed_url
-            }
+        framed_url = None
 
-            embed = create_profile_embed(profile_data, interaction.user)
+        try:
+            framed_url = await test(interaction.client, interaction.user, "default")
 
-            await interaction.followup.send(embed=embed)
-            message = await interaction.original_response()
+            if framed_url and not str(framed_url).startswith("❌"):
+                await conn.execute(
+                    "UPDATE profiles SET framed_profile_image = $1 WHERE user_id = $2",
+                    framed_url,
+                    interaction.user.id
+                )
 
-            await conn.execute(
-                "UPDATE profiles SET message_id=$1 WHERE user_id=$2",
-                message.id,
-                interaction.user.id
-            )
+        except Exception as e:
+            print(f"⚠️ Error aplicando marco: {e}")
 
-            await conn.close()
+        profile_data = {
+            "user_id": interaction.user.id,
+            "name": self.name.value,
+            "interests": self.interests,
+            "lines": self.lines,
+            "description": self.description.value,
+            "framed_profile_image": framed_url
+        }
+
+        embed = create_profile_embed(profile_data, interaction.user)
+
+        await interaction.followup.send(embed=embed)
+        message = await interaction.original_response()
+
+        await conn.execute(
+            "UPDATE profiles SET message_id=$1 WHERE user_id=$2",
+            message.id,
+            interaction.user.id
+        )
+
+        await conn.close()
 
 
 # ========================
@@ -219,6 +206,9 @@ class StartView(discord.ui.View):
 # COMMAND
 # ========================
 async def start_callback(interaction: discord.Interaction):
+
+    if not await check_nsfw(interaction):
+        return
 
     conn = await asyncpg.connect(DATABASE_URL)
 

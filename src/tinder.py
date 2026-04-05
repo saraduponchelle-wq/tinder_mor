@@ -5,6 +5,7 @@ import os
 
 from src.blog_viewer import BlogViewer
 from embed.create_profile import create_profile_embed
+from src.nsfw_check import check_nsfw
 
 
 EMOJI_GOLDNOTI = str(os.getenv("GOLDNOTI"))
@@ -38,24 +39,17 @@ async def get_connection():
 async def get_profiles(exclude_user_id: int):
 
     conn = await get_connection()
-    
+
     rows = await conn.fetch("""
         SELECT p.*
-    
         FROM profiles p
-    
         WHERE p.user_id != $1
-    
-        -- 🚫 bloqueos
         AND NOT ($1 = ANY(p.block))
         AND NOT (p.user_id = ANY(
             SELECT UNNEST(block) FROM profiles WHERE user_id = $1
         ))
-    
         ORDER BY
-            p.active DESC,  -- 🟢 online primero
-    
-            -- 🎯 prioridad: tiene al menos 1 categoría en común
+            p.active DESC,
             (
                 EXISTS (
                     SELECT 1
@@ -67,8 +61,6 @@ async def get_profiles(exclude_user_id: int):
                     )
                 )
             ) DESC,
-    
-            -- 🔥 cantidad de coincidencias (ranking fino)
             (
                 SELECT COUNT(*)
                 FROM UNNEST(COALESCE(p.lines, ARRAY[]::text[])) AS l
@@ -78,16 +70,12 @@ async def get_profiles(exclude_user_id: int):
                     WHERE user_id = $1
                 )
             ) DESC,
-    
-            -- ⭐ popularidad
             p.popularity DESC,
-    
-            -- extra
             p.matches DESC
     """, exclude_user_id)
-    
+
     await conn.close()
-    
+
     return rows
 
 
@@ -116,100 +104,81 @@ class TinderView(discord.ui.View):
         self.profiles = profiles
         self.index = 0
         self.author_id = author_id
-    
+
     async def interaction_check(self, interaction: discord.Interaction):
         return interaction.user.id == self.author_id
-    
-    # ==========================================================
-    # 🔥 BOTÓN DINÁMICO
-    # ==========================================================
+
     async def update_like_button(self):
 
         profile = self.profiles[self.index]
-    
+
         target_id = profile["user_id"]
         author_id = self.author_id
-    
+
         button = discord.utils.get(self.children, custom_id="like_btn")
-    
+
         if not button:
             return
-    
-        # 🔥 obtener ambos perfiles
+
         author_profile = await get_full_profile(author_id)
         target_profile = await get_full_profile(target_id)
-    
+
         author_matches = author_profile.get("matches") or []
         target_matches = target_profile.get("matches") or []
-    
-        # =========================
-        # 💬 YA MATCH (ambos)
-        # =========================
+
         if target_id in author_matches and author_id in target_matches:
             button.label = "Coucou"
             button.emoji = "💬"
             button.style = discord.ButtonStyle.primary
             return
-    
-        # =========================
-        # 💞 TE DIO LIKE
-        # =========================
+
         if author_id in target_matches:
             button.label = "Hacer Match"
             button.emoji = "💞"
             button.style = discord.ButtonStyle.success
             return
-    
-        # =========================
-        # ❤️ NORMAL
-        # =========================
+
         button.label = "Like"
         button.emoji = "❤️"
         button.style = discord.ButtonStyle.success
-    
-    # ==========================================================
-    # ACTUALIZAR PERFIL
-    # ==========================================================
+
     async def update_profile(self, interaction: discord.Interaction):
-    
+
         profile = self.profiles[self.index]
         user = await interaction.client.fetch_user(profile["user_id"])
-    
+
         embed = create_profile_embed(profile, user)
-    
-        # 🔥 actualizar botón dinámico
+
         await self.update_like_button()
-    
+
         await interaction.edit_original_response(
             embed=embed,
             view=self
         )
-    
+
     async def next_profile(self, interaction: discord.Interaction):
-    
+
         self.index += 1
-    
+
         if self.index >= len(self.profiles):
             self.index = 0
-    
+
         await self.update_profile(interaction)
-    
+
     # ==========================================================
     # BOTONES
     # ==========================================================
-    
+
     @discord.ui.button(
         label="Pass",
         style=discord.ButtonStyle.danger,
         emoji=EMOJI_BOTON_BROKENHEART
     )
     async def pass_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-    
+
         await interaction.response.defer()
         await self.next_profile(interaction)
-    
-    # 🔥 BOTÓN PRINCIPAL DINÁMICO
-    # 🔥 BOTÓN PRINCIPAL DINÁMICO
+
     @discord.ui.button(
         label="Like",
         style=discord.ButtonStyle.success,
@@ -232,9 +201,6 @@ class TinderView(discord.ui.View):
         user1 = interaction.user
         user2 = await interaction.client.fetch_user(target_id)
 
-        # ======================================================
-        # 🔥 OBTENER ESTADO REAL (ANTES DE TOCAR NADA)
-        # ======================================================
         author_profile = await get_full_profile(author_id)
         target_profile = await get_full_profile(target_id)
 
@@ -261,7 +227,6 @@ class TinderView(discord.ui.View):
         # ======================================================
         if target_liked_you:
 
-            # 👉 registrar like AQUÍ (no antes)
             await add_match(author_id, target_id)
             await add_like(target_id)
 
@@ -299,47 +264,51 @@ class TinderView(discord.ui.View):
             await interaction.followup.send("❤️ Like enviado.", ephemeral=True)
 
         await self.next_profile(interaction)
-    
+
     @discord.ui.button(label="Atrás", style=discord.ButtonStyle.secondary)
     async def back_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-    
+
         await interaction.response.defer()
-    
+
         if self.index == 0:
             self.index = len(self.profiles) - 1
         else:
             self.index -= 1
-    
+
         await self.update_profile(interaction)
-    
+
     @discord.ui.button(label="Blogs", style=discord.ButtonStyle.primary)
     async def view_blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
-    
+
         profile = self.profiles[self.index]
         user = await interaction.client.fetch_user(profile["user_id"])
-    
+
         embed = create_profile_embed(profile, user)
-    
+
         viewer = BlogViewer(user, embed, self)
         await viewer.load()
-    
+
         if not viewer.blogs:
             await interaction.response.send_message(
                 "📭 Este usuario no tiene blogs.",
                 ephemeral=True
             )
             return
-    
+
         await interaction.response.edit_message(
             embed=viewer.create_embed(),
             view=viewer
         )
 
+
 # ==========================================================
-# COMMAND (FUERA DE LA CLASE)
+# COMMAND
 # ==========================================================
 
 async def tinder_callback(interaction: discord.Interaction):
+
+    if not await check_nsfw(interaction):
+        return
 
     await interaction.response.defer(ephemeral=True)
 
@@ -369,6 +338,7 @@ async def tinder_callback(interaction: discord.Interaction):
         view=view,
         ephemeral=True
     )
+
 
 tinder = app_commands.Command(
     name="tinder",

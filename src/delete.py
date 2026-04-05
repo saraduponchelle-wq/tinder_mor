@@ -3,6 +3,8 @@ from discord import app_commands
 import asyncpg
 import os
 
+from src.nsfw_check import check_nsfw
+
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 EMOJI_YES = str(os.getenv("YES"))
@@ -11,7 +13,9 @@ EMOJI_NO = str(os.getenv("NO"))
 
 async def delete_callback(interaction: discord.Interaction, user: discord.User):
 
-    # 🔹 Verificar que se use en servidor
+    if not await check_nsfw(interaction):
+        return
+
     if interaction.guild is None:
         await interaction.response.send_message(
             f"{EMOJI_NO} Este comando solo puede usarse en un servidor.",
@@ -19,7 +23,6 @@ async def delete_callback(interaction: discord.Interaction, user: discord.User):
         )
         return
 
-    # 🔹 Verificar permisos admin
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message(
             f"{EMOJI_NO} Solo los administradores pueden usar este comando.",
@@ -29,7 +32,6 @@ async def delete_callback(interaction: discord.Interaction, user: discord.User):
 
     conn = await asyncpg.connect(DATABASE_URL)
 
-    # 🔹 Verificar si el perfil existe
     row = await conn.fetchrow(
         "SELECT message_id FROM profiles WHERE user_id = $1",
         user.id
@@ -43,7 +45,6 @@ async def delete_callback(interaction: discord.Interaction, user: discord.User):
         )
         return
 
-    # 🔹 Intentar borrar el mensaje si existe
     message_id = row["message_id"]
 
     if message_id:
@@ -57,7 +58,6 @@ async def delete_callback(interaction: discord.Interaction, user: discord.User):
         except discord.HTTPException:
             pass
 
-    # 🔹 Borrar de la base de datos
     await conn.execute(
         "DELETE FROM profiles WHERE user_id = $1",
         user.id

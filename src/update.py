@@ -4,6 +4,7 @@ import asyncpg
 import os
 
 from src.start import ProfileModal, StartView
+from src.nsfw_check import check_nsfw
 from test import test
 
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -30,7 +31,6 @@ class ImageModal(discord.ui.Modal, title="Actualizar imágenes"):
 
     async def on_submit(self, interaction: discord.Interaction):
 
-        # ✅ RESPONDER INMEDIATO (MUY IMPORTANTE)
         await interaction.response.send_message(
             "⏳ Procesando imágenes...",
             ephemeral=True
@@ -58,17 +58,12 @@ class ImageModal(discord.ui.Modal, title="Actualizar imágenes"):
             interaction.user.id
         )
 
-        # 🔥 PROCESO PESADO DESPUÉS
         try:
             url = await test(interaction.client, interaction.user, "default")
 
             if url and not str(url).startswith("❌"):
                 await conn.execute(
-                    """
-                    UPDATE profiles
-                    SET framed_profile_image = $1
-                    WHERE user_id = $2
-                    """,
+                    "UPDATE profiles SET framed_profile_image = $1 WHERE user_id = $2",
                     url,
                     interaction.user.id
                 )
@@ -85,7 +80,6 @@ class ImageModal(discord.ui.Modal, title="Actualizar imágenes"):
 
         await conn.close()
 
-        # ✅ USAR FOLLOWUP (NO response)
         await interaction.followup.send(
             "✅ Imágenes actualizadas correctamente.",
             ephemeral=True
@@ -107,7 +101,6 @@ class FrameSelect(discord.ui.Select):
             )
         ]
 
-        # evitar duplicar default
         options += [
             discord.SelectOption(label=frame, value=frame)
             for frame in frames if frame != "default"
@@ -131,7 +124,6 @@ class FrameSelect(discord.ui.Select):
 
         url = await test(interaction.client, interaction.user, selected_frame)
 
-        # ❌ manejo de errores del generador
         if not url or str(url).startswith("❌"):
             await interaction.followup.send(
                 url or "❌ Error aplicando el marco.",
@@ -141,11 +133,7 @@ class FrameSelect(discord.ui.Select):
             return
 
         await conn.execute(
-            """
-            UPDATE profiles
-            SET framed_profile_image = $1
-            WHERE user_id = $2
-            """,
+            "UPDATE profiles SET framed_profile_image = $1 WHERE user_id = $2",
             url,
             interaction.user.id
         )
@@ -219,6 +207,9 @@ class UpdateView(StartView):
 # ==========================================================
 
 async def update_callback(interaction: discord.Interaction):
+
+    if not await check_nsfw(interaction):
+        return
 
     conn = await asyncpg.connect(DATABASE_URL)
 
