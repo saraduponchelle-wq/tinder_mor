@@ -465,6 +465,10 @@ class OnlineProfiles:
                 if not channel:
                     continue
 
+                if not channel.is_nsfw():
+                    print(f"⚠️ Canal {channel_id} no es NSFW, saltando...")
+                    continue
+
                 try:
                     await channel.purge(limit=50)
                 except Exception as e:
