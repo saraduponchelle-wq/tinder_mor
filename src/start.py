@@ -5,7 +5,7 @@ import os
 
 from embed.create_profile import create_profile_embed
 from test import test
-from src.nsfw_check import check_nsfw
+from src.report import is_banned
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -111,6 +111,7 @@ class ProfileModal(discord.ui.Modal, title="Crea tu perfil"):
 
         conn = await asyncpg.connect(DATABASE_URL)
 
+        # Eliminar embed anterior si existe
         row = await conn.fetchrow(
             "SELECT message_id FROM profiles WHERE user_id = $1",
             interaction.user.id
@@ -120,9 +121,10 @@ class ProfileModal(discord.ui.Modal, title="Crea tu perfil"):
             try:
                 msg = await interaction.channel.fetch_message(row["message_id"])
                 await msg.delete()
-            except:
+            except Exception:
                 pass
 
+        # Guardar perfil sin marco primero
         await conn.execute("""
             INSERT INTO profiles(user_id, name, interests, lines, description)
             VALUES($1, $2, $3, $4, $5)
@@ -136,6 +138,7 @@ class ProfileModal(discord.ui.Modal, title="Crea tu perfil"):
             self.description.value
         )
 
+        # Aplicar marco default
         framed_url = None
 
         try:
@@ -147,7 +150,6 @@ class ProfileModal(discord.ui.Modal, title="Crea tu perfil"):
                     framed_url,
                     interaction.user.id
                 )
-
         except Exception as e:
             print(f"⚠️ Error aplicando marco: {e}")
 
@@ -207,7 +209,12 @@ class StartView(discord.ui.View):
 # ========================
 async def start_callback(interaction: discord.Interaction):
 
-    if not await check_nsfw(interaction):
+    # ✅ Verificar ban antes de todo
+    if await is_banned(interaction.user.id):
+        await interaction.response.send_message(
+            f"{EMOJI_NO} Has sido baneado del sistema y no puedes crear un perfil.",
+            ephemeral=True
+        )
         return
 
     conn = await asyncpg.connect(DATABASE_URL)

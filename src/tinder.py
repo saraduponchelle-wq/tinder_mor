@@ -5,12 +5,12 @@ import os
 
 from src.blog_viewer import BlogViewer
 from embed.create_profile import create_profile_embed
-from src.nsfw_check import check_nsfw
 
 
 EMOJI_GOLDNOTI = str(os.getenv("GOLDNOTI"))
 EMOJI_HEART = str(os.getenv("HEART"))
 EMOJI_BROKENHEART = str(os.getenv("BROKENHEART"))
+EMOJI_NO = str(os.getenv("NO"))
 
 EMOJI_BOTON_HEART = discord.PartialEmoji.from_str("<a:heart:1477738562433581338>")
 EMOJI_BOTON_BROKENHEART = discord.PartialEmoji.from_str("<:brokenheart:1477739060423299202>")
@@ -25,6 +25,8 @@ from src.tinder_logic import (
     send_coucou,
     LikeBackView
 )
+
+from src.report import ReportModal, is_banned
 
 
 # ==========================================================
@@ -44,12 +46,19 @@ async def get_profiles(exclude_user_id: int):
         SELECT p.*
         FROM profiles p
         WHERE p.user_id != $1
+
+        -- 🚫 bloqueos
         AND NOT ($1 = ANY(p.block))
         AND NOT (p.user_id = ANY(
             SELECT UNNEST(block) FROM profiles WHERE user_id = $1
         ))
+
+        -- 🚫 no mostrar baneados
+        AND p.user_id NOT IN (SELECT user_id FROM ban)
+
         ORDER BY
             p.active DESC,
+
             (
                 EXISTS (
                     SELECT 1
@@ -61,6 +70,7 @@ async def get_profiles(exclude_user_id: int):
                     )
                 )
             ) DESC,
+
             (
                 SELECT COUNT(*)
                 FROM UNNEST(COALESCE(p.lines, ARRAY[]::text[])) AS l
@@ -70,6 +80,7 @@ async def get_profiles(exclude_user_id: int):
                     WHERE user_id = $1
                 )
             ) DESC,
+
             p.popularity DESC,
             p.matches DESC
     """, exclude_user_id)
@@ -90,7 +101,7 @@ async def get_full_profile(user_id: int):
 
     await conn.close()
 
-    return dict(row)
+    return dict(row) if row else None
 
 
 # ==========================================================
@@ -108,10 +119,12 @@ class TinderView(discord.ui.View):
     async def interaction_check(self, interaction: discord.Interaction):
         return interaction.user.id == self.author_id
 
+    # ==========================================================
+    # BOTÓN LIKE DINÁMICO
+    # ==========================================================
     async def update_like_button(self):
 
         profile = self.profiles[self.index]
-
         target_id = profile["user_id"]
         author_id = self.author_id
 
@@ -123,8 +136,8 @@ class TinderView(discord.ui.View):
         author_profile = await get_full_profile(author_id)
         target_profile = await get_full_profile(target_id)
 
-        author_matches = author_profile.get("matches") or []
-        target_matches = target_profile.get("matches") or []
+        author_matches = author_profile.get("matches") or [] if author_profile else []
+        target_matches = target_profile.get("matches") or [] if target_profile else []
 
         if target_id in author_matches and author_id in target_matches:
             button.label = "Coucou"
@@ -142,6 +155,9 @@ class TinderView(discord.ui.View):
         button.emoji = "❤️"
         button.style = discord.ButtonStyle.success
 
+    # ==========================================================
+    # ACTUALIZAR PERFIL
+    # ==========================================================
     async def update_profile(self, interaction: discord.Interaction):
 
         profile = self.profiles[self.index]
@@ -151,10 +167,7 @@ class TinderView(discord.ui.View):
 
         await self.update_like_button()
 
-        await interaction.edit_original_response(
-            embed=embed,
-            view=self
-        )
+        await interaction.edit_original_response(embed=embed, view=self)
 
     async def next_profile(self, interaction: discord.Interaction):
 
@@ -190,7 +203,6 @@ class TinderView(discord.ui.View):
         await interaction.response.defer()
 
         profile = self.profiles[self.index]
-
         target_id = profile["user_id"]
         author_id = interaction.user.id
 
@@ -210,23 +222,16 @@ class TinderView(discord.ui.View):
         already_matched = target_id in author_matches and author_id in target_matches
         target_liked_you = author_id in target_matches
 
-        # ======================================================
-        # 💬 CASO 1: YA MATCH → COUCOU
-        # ======================================================
+        # 💬 YA MATCH → COUCOU
         if already_matched:
-
             await send_coucou(user2, user1)
             await add_popularity(target_id)
-
             await interaction.followup.send("💬 Coucou enviado.", ephemeral=True)
             await self.next_profile(interaction)
             return
 
-        # ======================================================
-        # 💞 CASO 2: HACER MATCH
-        # ======================================================
+        # 💞 HACER MATCH
         if target_liked_you:
-
             await add_match(author_id, target_id)
             await add_like(target_id)
 
@@ -235,21 +240,16 @@ class TinderView(discord.ui.View):
 
             await send_match(user1, profile2, user2)
             await send_match(user2, profile1, user1)
-
             await add_match_stat(user1.id, user2.id)
 
             await interaction.followup.send("💞 ¡Match!", ephemeral=True)
 
-        # ======================================================
-        # ❤️ CASO 3: LIKE NORMAL
-        # ======================================================
+        # ❤️ LIKE NORMAL
         else:
-
             await add_match(author_id, target_id)
             await add_like(target_id)
 
             profile1 = await get_full_profile(user1.id)
-
             embed = create_profile_embed(profile1, user1)
             embed.title = "💌 A alguien le ha gustado tu perfil"
 
@@ -300,6 +300,37 @@ class TinderView(discord.ui.View):
             view=viewer
         )
 
+    # ✅ NUEVO: botón de reporte
+    @discord.ui.button(label="🚨 Reportar", style=discord.ButtonStyle.secondary)
+    async def report_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        profile = self.profiles[self.index]
+        target_id = profile["user_id"]
+
+        if target_id == interaction.user.id:
+            await interaction.response.send_message(
+                "❌ No puedes reportarte a ti mismo.",
+                ephemeral=True
+            )
+            return
+
+        try:
+            discord_user = await interaction.client.fetch_user(target_id)
+        except Exception:
+            await interaction.response.send_message(
+                f"{EMOJI_NO} No se pudo obtener el usuario.",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.send_modal(
+            ReportModal(
+                reported_user_id=target_id,
+                profile_data=profile,
+                discord_user=discord_user
+            )
+        )
+
 
 # ==========================================================
 # COMMAND
@@ -307,10 +338,15 @@ class TinderView(discord.ui.View):
 
 async def tinder_callback(interaction: discord.Interaction):
 
-    if not await check_nsfw(interaction):
-        return
-
     await interaction.response.defer(ephemeral=True)
+
+    # ✅ Verificar si el propio usuario está baneado
+    if await is_banned(interaction.user.id):
+        await interaction.followup.send(
+            f"{EMOJI_NO} Has sido baneado del sistema y no puedes usar este comando.",
+            ephemeral=True
+        )
+        return
 
     rows = await get_profiles(interaction.user.id)
 
@@ -322,15 +358,11 @@ async def tinder_callback(interaction: discord.Interaction):
         return
 
     profiles = [dict(row) for row in rows]
-
     first = profiles[0]
-
     user = await interaction.client.fetch_user(first["user_id"])
-
     embed = create_profile_embed(first, user)
 
     view = TinderView(profiles, interaction.user.id)
-
     await view.update_like_button()
 
     await interaction.followup.send(
