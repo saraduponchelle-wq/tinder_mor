@@ -1,3 +1,5 @@
+# src/blog.py
+
 import discord
 from discord import app_commands
 import asyncio
@@ -8,7 +10,6 @@ from src.blog_db import add_blog
 from src.blog_notifications import get_users_with_news_enabled
 from src.server_db import get_all_servers
 from embed.create_profile import create_profile_embed
-from src.nsfw_check import check_nsfw
 
 from src.tinder_logic import (
     add_match,
@@ -44,22 +45,34 @@ class BlogImageButtonView(discord.ui.View):
         self.author = author
         self.blog_text = blog_text
 
-    @discord.ui.button(
-        label="Añadir imagen",
-        style=discord.ButtonStyle.primary
-    )
+    @discord.ui.button(label="Añadir imagen", style=discord.ButtonStyle.primary)
     async def add_image(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         if interaction.user.id != self.author.id:
             await interaction.response.send_message(
-                f"{EMOJI_NO} Solo el autor puede usar este botón.",
-                ephemeral=True
+                f"{EMOJI_NO} Solo el autor puede usar este botón.", ephemeral=True
             )
             return
 
         await interaction.response.send_modal(
             BlogImageModal(self.author, self.blog_text)
         )
+
+    # ✅ NUEVO: botón para publicar sin imagen directamente
+    @discord.ui.button(label="Publicar sin imagen", style=discord.ButtonStyle.secondary)
+    async def skip_image(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        if interaction.user.id != self.author.id:
+            await interaction.response.send_message(
+                f"{EMOJI_NO} Solo el autor puede usar este botón.", ephemeral=True
+            )
+            return
+
+        await interaction.response.send_message(
+            f"{EMOJI_YES} Blog enviado para revisión.", ephemeral=True
+        )
+
+        await post_blog_for_review(interaction.client, self.author, self.blog_text, None)
 
 
 class BlogImageModal(discord.ui.Modal, title="Añadir URL de la imagen"):
@@ -82,16 +95,10 @@ class BlogImageModal(discord.ui.Modal, title="Añadir URL de la imagen"):
         image_url = self.image_url_input.value.strip()
 
         await interaction.response.send_message(
-            f"{EMOJI_YES} Blog enviado para revisión.",
-            ephemeral=True
+            f"{EMOJI_YES} Blog enviado para revisión.", ephemeral=True
         )
 
-        await post_blog_for_review(
-            interaction.client,
-            self.author,
-            self.blog_text,
-            image_url
-        )
+        await post_blog_for_review(interaction.client, self.author, self.blog_text, image_url)
 
 
 # ==========================================================
@@ -113,16 +120,10 @@ class BlogInterestView(discord.ui.View):
 
     def create_action_button(self):
 
-        if self.already_matched:
-            label = "❤️ Me interesa"
-            style = discord.ButtonStyle.secondary
-            custom_id = "like"
-
-        elif self.liked_you:
+        if self.liked_you and not self.already_matched:
             label = "💞 Hacer Match"
             style = discord.ButtonStyle.success
             custom_id = "match"
-
         else:
             label = "❤️ Me interesa"
             style = discord.ButtonStyle.secondary
@@ -139,37 +140,28 @@ class BlogInterestView(discord.ui.View):
             profile2 = await get_full_profile(other.id)
 
             if custom_id == "match":
-
                 await add_match(user.id, self.liker_id)
-
                 await send_match(user, profile2, other)
                 await send_match(other, profile1, user)
-
                 await add_match_stat(user.id, other.id)
-
                 await interaction.response.send_message("💞 ¡Match!", ephemeral=True)
 
             else:
-
                 await add_match(user.id, self.liker_id)
                 await add_like(self.liker_id)
 
                 try:
                     embed = create_profile_embed(profile1, user)
-
                     await other.send(
                         content=f"💌 {user.mention} está interesado en ti",
                         embed=embed,
                         view=BlogInterestView(
-                            user.id,
-                            profile1,
-                            user,
-                            already_matched=False,
-                            liked_you=True
+                            user.id, profile1, user,
+                            already_matched=False, liked_you=True
                         )
                     )
-                except:
-                    pass
+                except Exception as e:
+                    print(f"[ERROR] DM interés: {e}")
 
                 await interaction.response.send_message("❤️ Interés enviado.", ephemeral=True)
 
@@ -182,7 +174,6 @@ class BlogInterestView(discord.ui.View):
         from src.blog_viewer import BlogViewer
 
         embed = create_profile_embed(self.profile_data, self.discord_user)
-
         viewer = BlogViewer(self.discord_user, embed, self)
         await viewer.load()
 
@@ -191,28 +182,20 @@ class BlogInterestView(discord.ui.View):
             return
 
         await interaction.response.send_message(
-            embed=viewer.create_embed(),
-            view=viewer,
-            ephemeral=True
+            embed=viewer.create_embed(), view=viewer, ephemeral=True
         )
 
     @discord.ui.button(label="🚫 Bloquear", style=discord.ButtonStyle.secondary)
     async def block(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         conn = await get_connection()
-
         await conn.execute(
             "UPDATE profiles SET block = array_append(block, $1) WHERE user_id = $2",
-            self.liker_id,
-            interaction.user.id
+            self.liker_id, interaction.user.id
         )
-
         await conn.close()
 
-        await interaction.response.edit_message(
-            content="🚫 Usuario bloqueado.",
-            view=None
-        )
+        await interaction.response.edit_message(content="🚫 Usuario bloqueado.", view=None)
 
 
 # ==========================================================
@@ -238,6 +221,10 @@ class BlogLikeView(discord.ui.View):
         profile_user = await get_full_profile(user.id)
         profile_author = await get_full_profile(author.id)
 
+        if not profile_user:
+            await interaction.response.send_message("❌ Necesitas crear un perfil primero.", ephemeral=True)
+            return
+
         if author.id in (profile_user.get("block") or []) or user.id in (profile_author.get("block") or []):
             await interaction.response.send_message("🚫 Usuario bloqueado.", ephemeral=True)
             return
@@ -255,53 +242,35 @@ class BlogLikeView(discord.ui.View):
         embed.title = "💌 Interés en tu blog"
 
         if not already_matched and author_liked_user:
-
             await add_match(user.id, author.id)
-
             await send_match(user, profile2, author)
             await send_match(author, profile1, user)
-
             await add_match_stat(user.id, author.id)
-
             msg = f"💖 {user.mention} hizo match contigo y le encantó tu blog"
-
             await interaction.response.send_message("💞 ¡Match!", ephemeral=True)
 
         elif already_matched:
-
             await add_popularity(author.id)
-
             msg = f"💖 {user.mention} volvió a interesarse en tu blog"
-
             await interaction.response.send_message("💬 Ya eran match.", ephemeral=True)
 
         else:
-
             await add_match(user.id, author.id)
             await add_like(author.id)
-
             msg = f"📢 {user.mention} está interesado en tu blog"
-
             await interaction.response.send_message("❤️ Interés enviado.", ephemeral=True)
 
         try:
             await author.send(
-                content=msg,
-                embed=embed,
-                view=BlogInterestView(
-                    user.id,
-                    profile1,
-                    user,
-                    already_matched,
-                    author_liked_user
-                )
+                content=msg, embed=embed,
+                view=BlogInterestView(user.id, profile1, user, already_matched, author_liked_user)
             )
         except Exception as e:
             print(f"[ERROR] DM blog like: {e}")
 
 
 # ==========================================================
-# PUBLICAR BLOG (REVISIÓN → CANALES +18 → DMs)
+# REVISIÓN Y PUBLICACIÓN
 # ==========================================================
 
 async def post_blog_for_review(client, author, blog_text, image_url):
@@ -310,28 +279,82 @@ async def post_blog_for_review(client, author, blog_text, image_url):
 
     if not channel:
         print("[ERROR] Canal de revisión no encontrado")
+        try:
+            await author.send(f"{EMOJI_NO} Error interno: canal de revisión no configurado.")
+        except Exception:
+            pass
         return
 
     embed = discord.Embed(
-        title=f"{EMOJI_NOTI} Nuevo Blog de {author.display_name}",
+        title=f"{EMOJI_NOTI} Blog de {author.display_name} — pendiente de revisión",
         description=blog_text,
-        color=discord.Color.red()
+        color=discord.Color.orange()
     )
+    embed.set_footer(text=f"ID autor: {author.id}")
 
     if image_url:
         embed.set_image(url=image_url)
 
     msg = await channel.send(embed=embed)
-    await msg.add_reaction("👍")
+
+    # ✅ Reacciones de aprobación/rechazo — el bot pone ambas para que el admin sepa
+    await msg.add_reaction("✅")
+    await msg.add_reaction("❌")
 
     def check(reaction, user):
-        return reaction.message.id == msg.id and str(reaction.emoji) == "👍"
+        # ✅ Ignorar al propio bot — esta es la corrección clave
+        if user.bot:
+            return False
+        if str(reaction.emoji) not in ("✅", "❌"):
+            return False
+        if reaction.message.id != msg.id:
+            return False
+
+        # Solo admins con el rol configurado
+        member = reaction.message.guild.get_member(user.id)
+        if not member:
+            return False
+
+        return any(role.id == ADMIN_ROLE_ID for role in member.roles)
 
     try:
-        await client.wait_for("reaction_add", timeout=28800, check=check)
+        reaction, admin_user = await client.wait_for(
+            "reaction_add",
+            timeout=28800,  # 8 horas
+            check=check
+        )
     except asyncio.TimeoutError:
+        await msg.edit(content="⏰ Blog expirado sin revisión.", embed=embed)
+        try:
+            await author.send(
+                f"{EMOJI_NO} Tu blog expiró sin ser revisado. Puedes volver a enviarlo."
+            )
+        except Exception:
+            pass
         return
 
+    # ❌ Rechazado
+    if str(reaction.emoji) == "❌":
+        await msg.edit(content=f"❌ Rechazado por {admin_user.mention}.", embed=embed)
+        try:
+            await author.send(f"{EMOJI_NO} Tu blog fue rechazado por un administrador.")
+        except Exception:
+            pass
+        return
+
+    # ✅ Aprobado — construir embed definitivo
+    await msg.edit(content=f"✅ Aprobado por {admin_user.mention}.", embed=embed)
+
+    publish_embed = discord.Embed(
+        title=f"{EMOJI_NOTI} Blog de {author.display_name}",
+        description=blog_text,
+        color=discord.Color.red()
+    )
+
+    if image_url:
+        publish_embed.set_image(url=image_url)
+
+    # Publicar en canales de servidores
     servers = await get_all_servers()
 
     for server in servers:
@@ -340,47 +363,47 @@ async def post_blog_for_review(client, author, blog_text, image_url):
             continue
 
         blog_channel = client.get_channel(channel_id)
-
         if not blog_channel:
             continue
 
-        # 🔞 Solo publicar si el canal es NSFW
-        if not getattr(blog_channel, "nsfw", False):
+        # ✅ Si el canal NO es +18, enviar aviso directamente ahí
+        is_nsfw = getattr(blog_channel, "nsfw", False)
+        if not is_nsfw:
             try:
-                await channel.send(
-                    "⚠️ Este canal debe ser marcado como **NSFW** para recibir este contenido."
+                await blog_channel.send(
+                    "⚠️ **Aviso:** Este canal no está marcado como +18. "
+                    "Los blogs de rol pueden contener contenido para adultos. "
+                    "Por favor, configura el canal como NSFW para verlos correctamente."
                 )
-            except:
-                pass
-            continue
+            except Exception as e:
+                print(f"[ERROR] Aviso +18 en canal {channel_id}: {e}")
+            continue  # no publicar el blog en canales no-NSFW
 
-        view = BlogLikeView(author)
+        try:
+            await blog_channel.send(embed=publish_embed, view=BlogLikeView(author))
+        except Exception as e:
+            print(f"[ERROR] Publicar en canal {channel_id}: {e}")
 
-        await blog_channel.send(embed=embed, view=view)
-
+    # Enviar DMs a usuarios con news activado
     user_ids = await get_users_with_news_enabled()
 
-    for user_id in user_ids:
+    for i, user_id in enumerate(user_ids):
         try:
             u = await client.fetch_user(user_id)
-
-            await u.send(
-                embed=embed,
-                view=BlogLikeView(author)
-            )
-
-            await u.send(
-                f"{EMOJI_MES} Si estás interesado, escríbele a {author.mention}"
-            )
-
+            await u.send(embed=publish_embed, view=BlogLikeView(author))
+            await u.send(f"{EMOJI_MES} Si estás interesado, escríbele a {author.mention}")
         except Exception as e:
-            print(f"[ERROR] No se pudo enviar DM {user_id}: {e}")
+            print(f"[ERROR] DM {user_id}: {e}")
 
+        if i > 0 and i % 10 == 0:
+            await asyncio.sleep(1)
+
+    # Guardar en DB
     await add_blog(author.id, blog_text, image_url or "nothing")
 
 
 # ==========================================================
-# MODAL TEXTO DEL BLOG
+# MODAL Y COMANDO
 # ==========================================================
 
 class BlogTextModal(discord.ui.Modal, title="Escribe tu blog"):
@@ -400,7 +423,6 @@ class BlogTextModal(discord.ui.Modal, title="Escribe tu blog"):
     async def on_submit(self, interaction: discord.Interaction):
 
         blog_text = self.blog_text_input.value.strip()
-
         view = BlogImageButtonView(self.author, blog_text)
 
         await interaction.response.send_message(
@@ -411,10 +433,6 @@ class BlogTextModal(discord.ui.Modal, title="Escribe tu blog"):
 
 
 async def crearblog_callback(interaction: discord.Interaction):
-
-    if not await check_nsfw(interaction):
-        return
-
     await interaction.response.send_modal(BlogTextModal(interaction.user))
 
 
