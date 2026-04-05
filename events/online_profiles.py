@@ -28,63 +28,6 @@ EMOJI_BOTON_HEART = discord.PartialEmoji.from_str("<a:heart:1477738562433581338>
 EMOJI_BOTON_BROKENHEART = discord.PartialEmoji.from_str("<:brokenheart:1477739060423299202>")
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-BLOG_REVIEW_CHANNEL_ID = int(os.getenv("BLOG_REVIEW_CHANNEL_ID"))
-
-
-# ==========================================================
-# MODAL DE REPORTE
-# ==========================================================
-
-class ReportModal(discord.ui.Modal, title="Reportar usuario"):
-
-    reason = discord.ui.TextInput(
-        label="Motivo del reporte",
-        style=discord.TextStyle.paragraph,
-        placeholder="Describe por qué estás reportando este perfil...",
-        required=True,
-        max_length=1000
-    )
-
-    def __init__(self, reported_user_id: int, reported_name: str):
-        super().__init__()
-        self.reported_user_id = reported_user_id
-        self.reported_name = reported_name
-
-    async def on_submit(self, interaction: discord.Interaction):
-
-        channel = interaction.client.get_channel(BLOG_REVIEW_CHANNEL_ID)
-
-        if channel:
-            embed = discord.Embed(
-                title="🚨 Nuevo Reporte de Perfil",
-                color=discord.Color.red()
-            )
-            embed.add_field(
-                name="Usuario reportado",
-                value=f"<@{self.reported_user_id}> (ID: `{self.reported_user_id}`)",
-                inline=False
-            )
-            embed.add_field(
-                name="Reportado por",
-                value=f"{interaction.user.mention} (ID: `{interaction.user.id}`)",
-                inline=False
-            )
-            embed.add_field(
-                name="Motivo",
-                value=self.reason.value,
-                inline=False
-            )
-            embed.set_footer(text=f"Nombre en perfil: {self.reported_name}")
-
-            try:
-                await channel.send(embed=embed)
-            except Exception as e:
-                print(f"[ERROR] No se pudo enviar reporte: {e}")
-
-        await interaction.response.send_message(
-            "🚨 Reporte enviado. Los administradores lo revisarán.",
-            ephemeral=True
-        )
 
 
 # ==========================================================
@@ -201,7 +144,10 @@ class LikeView(discord.ui.View):
         target_id = self.profile_data["user_id"]
 
         conn = await asyncpg.connect(DATABASE_URL)
-        row = await conn.fetchrow("SELECT block FROM profiles WHERE user_id=$1", author_id)
+
+        row = await conn.fetchrow(
+            "SELECT block FROM profiles WHERE user_id=$1", author_id
+        )
 
         if not row:
             await conn.close()
@@ -222,22 +168,6 @@ class LikeView(discord.ui.View):
         await conn.close()
 
         await interaction.response.send_message("🔓 Usuario desbloqueado correctamente.", ephemeral=True)
-
-    # ✅ NUEVO: Botón de reporte
-    @discord.ui.button(label="Reportar", style=discord.ButtonStyle.danger, emoji="🚨")
-    async def report(self, interaction: discord.Interaction, button: discord.ui.Button):
-
-        target_id = self.profile_data["user_id"]
-
-        if interaction.user.id == target_id:
-            await interaction.response.send_message("❌ No puedes reportarte a ti mismo.", ephemeral=True)
-            return
-
-        reported_name = self.profile_data.get("name", "Desconocido")
-
-        await interaction.response.send_modal(
-            ReportModal(target_id, reported_name)
-        )
 
 
 # ==========================================================
@@ -282,6 +212,7 @@ class OnlineProfiles:
     async def update_online_profiles(self):
 
         try:
+            print("🔄 Actualizando perfiles online...")
 
             conn = await asyncpg.connect(DATABASE_URL)
 
@@ -297,16 +228,19 @@ class OnlineProfiles:
                 """
             )
 
+            print(f"📊 Perfiles activos: {len(rows)}")
 
             servers = await get_all_servers()
 
             for server in servers:
 
                 channel_id = server["online_channel_id"]
+
                 if not channel_id:
                     continue
 
                 channel = self.bot.get_channel(channel_id)
+
                 if not channel:
                     continue
 
@@ -318,6 +252,8 @@ class OnlineProfiles:
                 for row in rows:
 
                     profile = dict(row)
+
+                    print(f"➡️ Enviando perfil {profile['user_id']}")
 
                     try:
                         user = await self.bot.fetch_user(profile["user_id"])
