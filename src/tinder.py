@@ -301,7 +301,7 @@ class TinderView(discord.ui.View):
         )
 
     # ✅ NUEVO: botón de reporte
-    @discord.ui.button(label="🚨 Reportar", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="🚨 Reportar", style=discord.ButtonStyle.danger)
     async def report_button(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         profile = self.profiles[self.index]

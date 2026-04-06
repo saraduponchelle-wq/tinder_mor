@@ -6,6 +6,7 @@ from discord.ext import tasks
 
 from src.blog_viewer import BlogViewer
 from src.server_db import get_all_servers
+from src.report import ReportModal, is_banned
 
 from embed.create_profile import create_profile_embed
 from src.tinder_logic import (
@@ -14,24 +15,20 @@ from src.tinder_logic import (
     add_match,
     add_match_stat,
     add_popularity,
-    is_mutual_match,
     send_match,
     send_coucou,
     LikeBackView
 )
 
-EMOJI_GOLDNOTI = str(os.getenv("GOLDNOTI"))
-EMOJI_HEART = str(os.getenv("HEART"))
-EMOJI_BROKENHEART = str(os.getenv("BROKENHEART"))
-
 EMOJI_BOTON_HEART = discord.PartialEmoji.from_str("<a:heart:1477738562433581338>")
 EMOJI_BOTON_BROKENHEART = discord.PartialEmoji.from_str("<:brokenheart:1477739060423299202>")
+EMOJI_NO = str(os.getenv("NO"))
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 
 # ==========================================================
-# LIKE BUTTON VIEW
+# LIKE VIEW — misma lógica que TinderView.like_button
 # ==========================================================
 
 class LikeView(discord.ui.View):
@@ -48,27 +45,36 @@ class LikeView(discord.ui.View):
         author_id = interaction.user.id
 
         if author_id == target_id:
-            await interaction.response.send_message("❌ No puedes darte like a ti mismo.", ephemeral=True)
+            await interaction.response.send_message(
+                "❌ No puedes darte like a ti mismo.", ephemeral=True
+            )
             return
 
+        # Verificar que el que da like tiene perfil
         conn = await asyncpg.connect(DATABASE_URL)
         row = await conn.fetchrow("SELECT * FROM profiles WHERE user_id=$1", author_id)
         await conn.close()
 
         if not row:
-            await interaction.response.send_message("❌ Necesitas crear un perfil primero.", ephemeral=True)
+            await interaction.response.send_message(
+                "❌ Necesitas crear un perfil primero.", ephemeral=True
+            )
             return
 
         liker_profile = dict(row)
 
         if target_id in (liker_profile.get("block") or []):
-            await interaction.response.send_message("🚫 Has bloqueado a este usuario.", ephemeral=True)
+            await interaction.response.send_message(
+                "🚫 Has bloqueado a este usuario.", ephemeral=True
+            )
             return
+
+        await interaction.response.defer(ephemeral=True)
 
         user1 = interaction.user
         user2 = await self.bot.fetch_user(target_id)
 
-        # ✅ Leer estado ANTES de modificar nada
+        # Leer estado ANTES de modificar
         author_profile = await get_full_profile(author_id)
         target_profile = await get_full_profile(target_id)
 
@@ -82,7 +88,7 @@ class LikeView(discord.ui.View):
         if already_matched:
             await send_coucou(user2, user1)
             await add_popularity(target_id)
-            await interaction.response.send_message("💬 Coucou enviado.", ephemeral=True)
+            await interaction.followup.send("💬 Coucou enviado.", ephemeral=True)
             return
 
         # 💞 CASO 2: MATCH NUEVO
@@ -97,7 +103,7 @@ class LikeView(discord.ui.View):
             await send_match(user2, profile1, user1)
             await add_match_stat(user1.id, user2.id)
 
-            await interaction.response.send_message("💞 ¡Match!", ephemeral=True)
+            await interaction.followup.send("💞 ¡Match!", ephemeral=True)
             return
 
         # ❤️ CASO 3: LIKE NORMAL
@@ -116,7 +122,7 @@ class LikeView(discord.ui.View):
         except Exception as e:
             print(f"⚠️ No se pudo enviar DM: {e}")
 
-        await interaction.response.send_message("❤️ Like enviado.", ephemeral=True)
+        await interaction.followup.send("❤️ Like enviado.", ephemeral=True)
 
     @discord.ui.button(label="Blogs", style=discord.ButtonStyle.primary)
     async def view_blogs(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -128,7 +134,9 @@ class LikeView(discord.ui.View):
         await viewer.load()
 
         if not viewer.blogs:
-            await interaction.response.send_message("📭 Este usuario no tiene blogs.", ephemeral=True)
+            await interaction.response.send_message(
+                "📭 Este usuario no tiene blogs.", ephemeral=True
+            )
             return
 
         await interaction.response.send_message(
@@ -137,14 +145,40 @@ class LikeView(discord.ui.View):
             ephemeral=True
         )
 
-    @discord.ui.button(label="Desbloquear", style=discord.ButtonStyle.secondary, emoji="🔓")
+    @discord.ui.button(label="🚨 Reportar", style=discord.ButtonStyle.secondary)
+    async def report_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+        target_id = self.profile_data["user_id"]
+
+        if target_id == interaction.user.id:
+            await interaction.response.send_message(
+                "❌ No puedes reportarte a ti mismo.", ephemeral=True
+            )
+            return
+
+        try:
+            discord_user = await self.bot.fetch_user(target_id)
+        except Exception:
+            await interaction.response.send_message(
+                f"{EMOJI_NO} No se pudo obtener el usuario.", ephemeral=True
+            )
+            return
+
+        await interaction.response.send_modal(
+            ReportModal(
+                reported_user_id=target_id,
+                profile_data=self.profile_data,
+                discord_user=discord_user
+            )
+        )
+
+    @discord.ui.button(label="🔓 Desbloquear", style=discord.ButtonStyle.secondary)
     async def unblock(self, interaction: discord.Interaction, button: discord.ui.Button):
 
         author_id = interaction.user.id
         target_id = self.profile_data["user_id"]
 
         conn = await asyncpg.connect(DATABASE_URL)
-
         row = await conn.fetchrow(
             "SELECT block FROM profiles WHERE user_id=$1", author_id
         )
@@ -158,7 +192,9 @@ class LikeView(discord.ui.View):
 
         if target_id not in blocked:
             await conn.close()
-            await interaction.response.send_message("ℹ️ Este usuario no está bloqueado.", ephemeral=True)
+            await interaction.response.send_message(
+                "ℹ️ Este usuario no está bloqueado.", ephemeral=True
+            )
             return
 
         await conn.execute(
@@ -167,7 +203,9 @@ class LikeView(discord.ui.View):
         )
         await conn.close()
 
-        await interaction.response.send_message("🔓 Usuario desbloqueado correctamente.", ephemeral=True)
+        await interaction.response.send_message(
+            "🔓 Usuario desbloqueado correctamente.", ephemeral=True
+        )
 
 
 # ==========================================================
@@ -224,6 +262,7 @@ class OnlineProfiles:
                 SELECT *
                 FROM profiles
                 WHERE active = TRUE
+                  AND user_id NOT IN (SELECT user_id FROM ban)
                 ORDER BY popularity DESC
                 """
             )
@@ -235,12 +274,10 @@ class OnlineProfiles:
             for server in servers:
 
                 channel_id = server["online_channel_id"]
-
                 if not channel_id:
                     continue
 
                 channel = self.bot.get_channel(channel_id)
-
                 if not channel:
                     continue
 
@@ -252,8 +289,6 @@ class OnlineProfiles:
                 for row in rows:
 
                     profile = dict(row)
-
-                    print(f"➡️ Enviando perfil {profile['user_id']}")
 
                     try:
                         user = await self.bot.fetch_user(profile["user_id"])
