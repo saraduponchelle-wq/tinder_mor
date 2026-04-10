@@ -10,6 +10,7 @@ from src.blog_db import add_blog
 from src.blog_notifications import get_users_with_news_enabled
 from src.server_db import get_all_servers
 from embed.create_profile import create_profile_embed
+from src.image_validator import is_valid_image_url
 
 from src.tinder_logic import (
     add_match,
@@ -58,7 +59,6 @@ class BlogImageButtonView(discord.ui.View):
             BlogImageModal(self.author, self.blog_text)
         )
 
-    # ✅ NUEVO: botón para publicar sin imagen directamente
     @discord.ui.button(label="Publicar sin imagen", style=discord.ButtonStyle.secondary)
     async def skip_image(self, interaction: discord.Interaction, button: discord.ui.Button):
 
@@ -75,12 +75,12 @@ class BlogImageButtonView(discord.ui.View):
         await post_blog_for_review(interaction.client, self.author, self.blog_text, None)
 
 
-class BlogImageModal(discord.ui.Modal, title="Añadir URL de la imagen"):
+class BlogImageModal(discord.ui.Modal, title="Añadir imagen al blog"):
 
     image_url_input = discord.ui.TextInput(
-        label="URL de la imagen",
+        label="Enlace de imagen o GIF (de Discord)",
         style=discord.TextStyle.short,
-        placeholder="https://ejemplo.com/imagen.png",
+        placeholder="https://cdn.discordapp.com/attachments/...",
         required=True,
         max_length=2000
     )
@@ -93,6 +93,21 @@ class BlogImageModal(discord.ui.Modal, title="Añadir URL de la imagen"):
     async def on_submit(self, interaction: discord.Interaction):
 
         image_url = self.image_url_input.value.strip()
+
+        # ── Validar URL ────────────────────────────────────────────
+        valid, error_msg = is_valid_image_url(image_url)
+
+        if not valid:
+            await interaction.response.send_message(
+                f"{error_msg}\n\n"
+                "💡 **¿Cómo obtener el enlace correcto?**\n"
+                "1. Sube la imagen a cualquier canal de Discord.\n"
+                "2. Haz clic derecho sobre ella → **Copiar enlace de medios**.\n"
+                "3. Pega ese enlace aquí.\n\n"
+                "Pulsa **Añadir imagen** de nuevo para intentarlo.",
+                ephemeral=True
+            )
+            return
 
         await interaction.response.send_message(
             f"{EMOJI_YES} Blog enviado para revisión.", ephemeral=True
@@ -297,12 +312,10 @@ async def post_blog_for_review(client, author, blog_text, image_url):
 
     msg = await channel.send(embed=embed)
 
-    # ✅ Reacciones de aprobación/rechazo — el bot pone ambas para que el admin sepa
     await msg.add_reaction("✅")
     await msg.add_reaction("❌")
 
     def check(reaction, user):
-        # ✅ Ignorar al propio bot — esta es la corrección clave
         if user.bot:
             return False
         if str(reaction.emoji) not in ("✅", "❌"):
@@ -310,7 +323,6 @@ async def post_blog_for_review(client, author, blog_text, image_url):
         if reaction.message.id != msg.id:
             return False
 
-        # Solo admins con el rol configurado
         member = reaction.message.guild.get_member(user.id)
         if not member:
             return False
@@ -320,7 +332,7 @@ async def post_blog_for_review(client, author, blog_text, image_url):
     try:
         reaction, admin_user = await client.wait_for(
             "reaction_add",
-            timeout=28800,  # 8 horas
+            timeout=28800,
             check=check
         )
     except asyncio.TimeoutError:
@@ -333,7 +345,6 @@ async def post_blog_for_review(client, author, blog_text, image_url):
             pass
         return
 
-    # ❌ Rechazado
     if str(reaction.emoji) == "❌":
         await msg.edit(content=f"❌ Rechazado por {admin_user.mention}.", embed=embed)
         try:
@@ -342,7 +353,6 @@ async def post_blog_for_review(client, author, blog_text, image_url):
             pass
         return
 
-    # ✅ Aprobado — construir embed definitivo
     await msg.edit(content=f"✅ Aprobado por {admin_user.mention}.", embed=embed)
 
     publish_embed = discord.Embed(
@@ -354,7 +364,6 @@ async def post_blog_for_review(client, author, blog_text, image_url):
     if image_url:
         publish_embed.set_image(url=image_url)
 
-    # Publicar en canales de servidores
     servers = await get_all_servers()
 
     for server in servers:
@@ -366,7 +375,6 @@ async def post_blog_for_review(client, author, blog_text, image_url):
         if not blog_channel:
             continue
 
-        # ✅ Si el canal NO es +18, enviar aviso directamente ahí
         is_nsfw = getattr(blog_channel, "nsfw", False)
         if not is_nsfw:
             try:
@@ -377,14 +385,13 @@ async def post_blog_for_review(client, author, blog_text, image_url):
                 )
             except Exception as e:
                 print(f"[ERROR] Aviso +18 en canal {channel_id}: {e}")
-            continue  # no publicar el blog en canales no-NSFW
+            continue
 
         try:
             await blog_channel.send(embed=publish_embed, view=BlogLikeView(author))
         except Exception as e:
             print(f"[ERROR] Publicar en canal {channel_id}: {e}")
 
-    # Enviar DMs a usuarios con news activado
     user_ids = await get_users_with_news_enabled()
 
     for i, user_id in enumerate(user_ids):
@@ -398,7 +405,6 @@ async def post_blog_for_review(client, author, blog_text, image_url):
         if i > 0 and i % 10 == 0:
             await asyncio.sleep(1)
 
-    # Guardar en DB
     await add_blog(author.id, blog_text, image_url or "nothing")
 
 

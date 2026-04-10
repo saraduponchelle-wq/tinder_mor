@@ -5,6 +5,7 @@ import os
 
 from src.start import ProfileModal, StartView
 from src.nsfw_check import check_nsfw
+from src.image_validator import is_valid_image_url
 from test import test
 
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -20,18 +21,47 @@ EMOJI_NO = str(os.getenv("NO"))
 class ImageModal(discord.ui.Modal, title="Actualizar imágenes"):
 
     profile_image = discord.ui.TextInput(
-        label="Imagen de perfil (URL)",
-        placeholder="https://ejemplo.com/foto.png",
-        required=False
+        label="Foto de perfil (enlace de Discord)",
+        placeholder="https://cdn.discordapp.com/attachments/... — vacío = sin cambios",
+        required=False,
+        max_length=2000
     )
 
     banner_image = discord.ui.TextInput(
-        label="Banner (URL)",
-        placeholder="https://ejemplo.com/banner.png",
-        required=False
+        label="Banner (enlace de Discord)",
+        placeholder="https://cdn.discordapp.com/attachments/... — vacío = sin cambios",
+        required=False,
+        max_length=2000
     )
 
     async def on_submit(self, interaction: discord.Interaction):
+
+        raw_profile = self.profile_image.value.strip()
+        raw_banner  = self.banner_image.value.strip()
+
+        # Validar foto de perfil (solo si el usuario escribió algo)
+        if raw_profile:
+            valid, error_msg = is_valid_image_url(raw_profile)
+            if not valid:
+                await interaction.response.send_message(
+                    f"**Foto de perfil inválida**\n{error_msg}\n\n"
+                    "💡 Sube la imagen a Discord, haz clic derecho → "
+                    "**Copiar enlace de medios** y pégalo aquí.",
+                    ephemeral=True
+                )
+                return
+
+        # Validar banner (solo si el usuario escribió algo)
+        if raw_banner:
+            valid, error_msg = is_valid_image_url(raw_banner)
+            if not valid:
+                await interaction.response.send_message(
+                    f"**Banner inválido**\n{error_msg}\n\n"
+                    "💡 Sube la imagen a Discord, haz clic derecho → "
+                    "**Copiar enlace de medios** y pégalo aquí.",
+                    ephemeral=True
+                )
+                return
 
         await interaction.response.send_message(
             "⏳ Procesando imágenes...",
@@ -45,8 +75,8 @@ class ImageModal(discord.ui.Modal, title="Actualizar imágenes"):
             interaction.user.id
         )
 
-        new_profile = self.profile_image.value.strip() or row["profile_image"]
-        new_banner  = self.banner_image.value.strip()  or row["banner_image"]
+        new_profile = raw_profile or row["profile_image"]
+        new_banner  = raw_banner  or row["banner_image"]
 
         await conn.execute(
             """
@@ -97,53 +127,36 @@ class FrameSelect(discord.ui.Select):
 
     def __init__(self, frames: list[str]):
 
-        options = [
-            discord.SelectOption(
-                label="🖼️ Default",
-                value="default"
-            )
-        ]
-
+        options = [discord.SelectOption(label="🖼️ Default", value="default")]
         options += [
             discord.SelectOption(label=frame, value=frame)
             for frame in frames if frame != "default"
         ]
 
-        super().__init__(
-            placeholder="Selecciona un marco",
-            options=options
-        )
+        super().__init__(placeholder="Selecciona un marco", options=options)
 
     async def callback(self, interaction: discord.Interaction):
 
         selected_frame = self.values[0]
 
         await interaction.response.send_message(
-            f"⏳ Aplicando marco `{selected_frame}`...",
-            ephemeral=True
+            f"⏳ Aplicando marco `{selected_frame}`...", ephemeral=True
         )
 
         url = await test(interaction.client, interaction.user, selected_frame)
 
         if not url or str(url).startswith("❌"):
-            await interaction.followup.send(
-                url or "❌ Error aplicando el marco.",
-                ephemeral=True
-            )
+            await interaction.followup.send(url or "❌ Error aplicando el marco.", ephemeral=True)
             return
 
         conn = await asyncpg.connect(DATABASE_URL)
         await conn.execute(
             "UPDATE profiles SET framed_profile_image=$1 WHERE user_id=$2",
-            url,
-            interaction.user.id
+            url, interaction.user.id
         )
         await conn.close()
 
-        await interaction.followup.send(
-            "✅ Marco aplicado correctamente.",
-            ephemeral=True
-        )
+        await interaction.followup.send("✅ Marco aplicado correctamente.", ephemeral=True)
 
 
 # ==========================================================
@@ -155,61 +168,34 @@ class UpdateView(StartView):
     def __init__(self, *args, frames=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.frames = frames or []
-
         if self.frames:
             self.add_item(FrameSelect(self.frames))
 
-    @discord.ui.button(
-        label="✍️ Nombre y Descripción",
-        style=discord.ButtonStyle.green,
-        row=2
-    )
+    @discord.ui.button(label="✍️ Nombre y Descripción", style=discord.ButtonStyle.green, row=2)
     async def update_modal(self, interaction: discord.Interaction, button: discord.ui.Button):
-
         modal = ProfileModal(
             interests=self.interests,
             lines=self.lines,
             default_name=getattr(self, "default_name", ""),
             default_description=getattr(self, "default_description", "")
         )
-
         await interaction.response.send_modal(modal)
 
-    @discord.ui.button(
-        label="🖼️ Imágenes",
-        style=discord.ButtonStyle.blurple,
-        row=2
-    )
+    @discord.ui.button(label="🖼️ Imágenes", style=discord.ButtonStyle.blurple, row=2)
     async def update_images(self, interaction: discord.Interaction, button: discord.ui.Button):
-
         await interaction.response.send_modal(ImageModal())
 
-    @discord.ui.button(
-        label="🎨 Cambiar Marco",
-        style=discord.ButtonStyle.secondary,
-        row=2
-    )
+    @discord.ui.button(label="🎨 Cambiar Marco", style=discord.ButtonStyle.secondary, row=2)
     async def change_frame(self, interaction: discord.Interaction, button: discord.ui.Button):
-
         if not self.frames:
-            await interaction.response.send_message(
-                "❌ No tienes marcos desbloqueados.",
-                ephemeral=True
-            )
+            await interaction.response.send_message("❌ No tienes marcos desbloqueados.", ephemeral=True)
             return
-
         await interaction.response.send_message(
-            "Selecciona un marco del menú desplegable 👇",
-            view=self,
-            ephemeral=True
+            "Selecciona un marco del menú desplegable 👇", view=self, ephemeral=True
         )
 
-    # ── Sobreescribir el botón heredado de StartView para que no aparezca ──
-    # El botón "Crear Perfil" de StartView no tiene sentido en UpdateView,
-    # así que lo redefinimos con el mismo custom_id para que Discord lo ignore.
     @discord.ui.button(label="✍️ Crear Perfil", style=discord.ButtonStyle.green, row=3)
     async def create_profile(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # En UpdateView este botón no se usa; la lógica está en update_modal
         pass
 
 
@@ -223,18 +209,12 @@ async def update_callback(interaction: discord.Interaction):
         return
 
     conn = await asyncpg.connect(DATABASE_URL)
-
-    row = await conn.fetchrow(
-        "SELECT * FROM profiles WHERE user_id=$1",
-        interaction.user.id
-    )
-
+    row = await conn.fetchrow("SELECT * FROM profiles WHERE user_id=$1", interaction.user.id)
     await conn.close()
 
     if not row:
         await interaction.response.send_message(
-            f"{EMOJI_NO} No tienes perfil. Usa `/start`.",
-            ephemeral=True
+            f"{EMOJI_NO} No tienes perfil. Usa `/start`.", ephemeral=True
         )
         return
 
@@ -245,7 +225,6 @@ async def update_callback(interaction: discord.Interaction):
         default_lines=row["lines"],
         frames=frames
     )
-
     view.default_name        = row["name"]
     view.default_description = row["description"]
 
@@ -261,11 +240,7 @@ async def update_callback(interaction: discord.Interaction):
         color=discord.Color.pink()
     )
 
-    await interaction.response.send_message(
-        embed=embed,
-        view=view,
-        ephemeral=True
-    )
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
 update = app_commands.Command(
