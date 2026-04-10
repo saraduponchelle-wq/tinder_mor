@@ -21,11 +21,13 @@ class ImageModal(discord.ui.Modal, title="Actualizar imágenes"):
 
     profile_image = discord.ui.TextInput(
         label="Imagen de perfil (URL)",
+        placeholder="https://ejemplo.com/foto.png",
         required=False
     )
 
     banner_image = discord.ui.TextInput(
         label="Banner (URL)",
+        placeholder="https://ejemplo.com/banner.png",
         required=False
     )
 
@@ -44,13 +46,13 @@ class ImageModal(discord.ui.Modal, title="Actualizar imágenes"):
         )
 
         new_profile = self.profile_image.value.strip() or row["profile_image"]
-        new_banner = self.banner_image.value.strip() or row["banner_image"]
+        new_banner  = self.banner_image.value.strip()  or row["banner_image"]
 
         await conn.execute(
             """
             UPDATE profiles
             SET profile_image = $1,
-                banner_image = $2
+                banner_image  = $2
             WHERE user_id = $3
             """,
             new_profile,
@@ -58,27 +60,28 @@ class ImageModal(discord.ui.Modal, title="Actualizar imágenes"):
             interaction.user.id
         )
 
+        await conn.close()
+
         try:
             url = await test(interaction.client, interaction.user, "default")
 
             if url and not str(url).startswith("❌"):
-                await conn.execute(
-                    "UPDATE profiles SET framed_profile_image = $1 WHERE user_id = $2",
+                conn2 = await asyncpg.connect(DATABASE_URL)
+                await conn2.execute(
+                    "UPDATE profiles SET framed_profile_image=$1 WHERE user_id=$2",
                     url,
                     interaction.user.id
                 )
+                await conn2.close()
             else:
                 await interaction.followup.send(
                     url or "❌ Error generando marco.",
                     ephemeral=True
                 )
-                await conn.close()
                 return
 
         except Exception as e:
             print(f"⚠️ Error aplicando marco default: {e}")
-
-        await conn.close()
 
         await interaction.followup.send(
             "✅ Imágenes actualizadas correctamente.",
@@ -115,8 +118,6 @@ class FrameSelect(discord.ui.Select):
 
         selected_frame = self.values[0]
 
-        conn = await asyncpg.connect(DATABASE_URL)
-
         await interaction.response.send_message(
             f"⏳ Aplicando marco `{selected_frame}`...",
             ephemeral=True
@@ -129,15 +130,14 @@ class FrameSelect(discord.ui.Select):
                 url or "❌ Error aplicando el marco.",
                 ephemeral=True
             )
-            await conn.close()
             return
 
+        conn = await asyncpg.connect(DATABASE_URL)
         await conn.execute(
-            "UPDATE profiles SET framed_profile_image = $1 WHERE user_id = $2",
+            "UPDATE profiles SET framed_profile_image=$1 WHERE user_id=$2",
             url,
             interaction.user.id
         )
-
         await conn.close()
 
         await interaction.followup.send(
@@ -160,8 +160,9 @@ class UpdateView(StartView):
             self.add_item(FrameSelect(self.frames))
 
     @discord.ui.button(
-        label="Actualizar Nombre y Descripción",
-        style=discord.ButtonStyle.green
+        label="✍️ Nombre y Descripción",
+        style=discord.ButtonStyle.green,
+        row=2
     )
     async def update_modal(self, interaction: discord.Interaction, button: discord.ui.Button):
 
@@ -175,8 +176,9 @@ class UpdateView(StartView):
         await interaction.response.send_modal(modal)
 
     @discord.ui.button(
-        label="Actualizar Imágenes",
-        style=discord.ButtonStyle.blurple
+        label="🖼️ Imágenes",
+        style=discord.ButtonStyle.blurple,
+        row=2
     )
     async def update_images(self, interaction: discord.Interaction, button: discord.ui.Button):
 
@@ -184,7 +186,8 @@ class UpdateView(StartView):
 
     @discord.ui.button(
         label="🎨 Cambiar Marco",
-        style=discord.ButtonStyle.secondary
+        style=discord.ButtonStyle.secondary,
+        row=2
     )
     async def change_frame(self, interaction: discord.Interaction, button: discord.ui.Button):
 
@@ -201,6 +204,14 @@ class UpdateView(StartView):
             ephemeral=True
         )
 
+    # ── Sobreescribir el botón heredado de StartView para que no aparezca ──
+    # El botón "Crear Perfil" de StartView no tiene sentido en UpdateView,
+    # así que lo redefinimos con el mismo custom_id para que Discord lo ignore.
+    @discord.ui.button(label="✍️ Crear Perfil", style=discord.ButtonStyle.green, row=3)
+    async def create_profile(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # En UpdateView este botón no se usa; la lógica está en update_modal
+        pass
+
 
 # ==========================================================
 # COMANDO
@@ -214,7 +225,7 @@ async def update_callback(interaction: discord.Interaction):
     conn = await asyncpg.connect(DATABASE_URL)
 
     row = await conn.fetchrow(
-        "SELECT * FROM profiles WHERE user_id = $1",
+        "SELECT * FROM profiles WHERE user_id=$1",
         interaction.user.id
     )
 
@@ -235,12 +246,18 @@ async def update_callback(interaction: discord.Interaction):
         frames=frames
     )
 
-    view.default_name = row["name"]
+    view.default_name        = row["name"]
     view.default_description = row["description"]
 
     embed = discord.Embed(
         title=f"{EMOJI_HEART} Actualiza tu perfil",
-        description="Puedes modificar tu perfil, imágenes o marcos.",
+        description=(
+            "Elige qué quieres modificar:\n\n"
+            "✍️ **Nombre y Descripción** — cambia tu nombre o bio\n"
+            "🖼️ **Imágenes** — actualiza foto de perfil o banner\n"
+            "🎨 **Cambiar Marco** — aplica un marco desbloqueado\n\n"
+            "Los menús de intereses y tipo de rol también están activos."
+        ),
         color=discord.Color.pink()
     )
 
